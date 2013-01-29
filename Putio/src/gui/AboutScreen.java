@@ -33,6 +33,7 @@ public class AboutScreen extends JFrame {
 			"Build date: 08.11.2012<BR>" +
 			"<BR>" +
 			"Author: Günhan Özden<BR>" +
+			" + WayneRSH (UI)<br />" +
 			"Wrote this small program with love and hopes,<BR>" +
 			"it makes your life a little bit easier. Enjoy it!<BR>" +
 			"This program is completely free<BR>" +
