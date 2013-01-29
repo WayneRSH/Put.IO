@@ -150,10 +150,7 @@ public class DownloadManager implements Runnable {
                     while ( downloads.hasNext() ) {
                         totalSpeed += downloads.next().getCurrentSpeed();
                     }
-                    ms.updateCurrentDownloadSpeed( String
-                            .valueOf( GuiOperations
-                                    .roundTo2Decimals( totalSpeed ) )
-                            + " MB/s" );
+                    ms.updateCurrentDownloadSpeed( GuiOperations.getReadableFromMBSize( totalSpeed ) + "/s" );
                 }
                 Thread.sleep( 1000 );
             } catch ( InterruptedException e ) {
@@ -362,6 +359,7 @@ public class DownloadManager implements Runnable {
                                         / ( ( currentSystemTime - prevSystemTime ) / 1000.0 );
                                 // Update current speed of download
                                 download.setCurrentSpeed( downloadSpeed );
+                                String readableDownloadSpeed = GuiOperations.getReadableFromMBSize( downloadSpeed );
                                 prevSystemTime = currentSystemTime;
                                 prevDownloadedAmount = currentDownloadedAmount;
                                 downloadPercent = (float)currentDownloadedAmount / (float)download.getTotalLength();
@@ -372,9 +370,8 @@ public class DownloadManager implements Runnable {
                                                 .getReadableSize( download
                                                         .getTotalLength() )
                                         + " ("
-                                        + GuiOperations
-                                                .roundTo2Decimals( downloadSpeed )
-                                        + "MB/sn)";
+                                        + readableDownloadSpeed
+                                        + "/s)";
                             }
                             leaf.setDownPerc( downloadPercent );
                             leaf.setStatus( status );

@@ -53,6 +53,10 @@ public class GuiOperations {
         }
         return roundTo2Decimals(retVal) + unit;
     }
+    
+    public static String getReadableFromMBSize(double size) {
+        return getReadableSize( (long)( size * 1048576.0 ) );
+    }
 
     public static double roundTo2Decimals(double value) {
         double result = value * 10;

@@ -207,7 +207,6 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
                 downloadPercentage = 1.0f;
             else
                 downloadPercentage = dwnPerc;
-            System.out.println(dwnPerc);
             tree.repaint();
         }
 
