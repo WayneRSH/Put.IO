@@ -331,13 +331,13 @@ public class DownloadManager implements Runnable {
             public void run() {
                 try {
                     String status;
+                    float downloadPercent = 0.0f;
                     long prevSystemTime = System.currentTimeMillis(), currentSystemTime;
                     long prevDownloadedAmount = 0L, currentDownloadedAmount = 0L;
-                    int rowNumber;
+                    LeafNode leaf;
                     while ( t.isAlive() ) {
-                        rowNumber = GuiOperations.getRowNumber( ms,
-                                download.getId() );
-                        if ( rowNumber >= 0 ) {
+                        leaf = GuiOperations.getLeaf( ms, download.getItem() );
+                        if ( leaf != null ) {
                             if ( download.getDownloadedAmount() == 0L ) {
                                 status = "Starting download";
                                 prevSystemTime = System.currentTimeMillis();
@@ -364,6 +364,7 @@ public class DownloadManager implements Runnable {
                                 download.setCurrentSpeed( downloadSpeed );
                                 prevSystemTime = currentSystemTime;
                                 prevDownloadedAmount = currentDownloadedAmount;
+                                downloadPercent = (float)currentDownloadedAmount / (float)download.getTotalLength();
                                 status = GuiOperations
                                         .getReadableSize( currentDownloadedAmount )
                                         + " / "
@@ -375,8 +376,8 @@ public class DownloadManager implements Runnable {
                                                 .roundTo2Decimals( downloadSpeed )
                                         + "MB/sn)";
                             }
-                            ms.getItemTable().getModel()
-                                    .setValueAt( status, rowNumber, 5 );
+                            leaf.setDownPerc( downloadPercent );
+                            leaf.setStatus( status );
                         }
                         Thread.sleep( 1000L );
                     }
@@ -384,29 +385,18 @@ public class DownloadManager implements Runnable {
                     // ignore
                 } finally {
                     activeDownloads.remove( download.getId() );
-                    int rowNumber = GuiOperations.getRowNumber( ms,
-                            download.getId() );
-                    if ( rowNumber >= 0 ) {
+                    LeafNode leaf = GuiOperations.getLeaf( ms, download.getItem() );
+                    if ( leaf != null ) {
                         if ( !download.isFaulty() ) {
-                            ms.getItemTable().getModel()
-                                    .setValueAt( "Completed", rowNumber, 5 );
+                            leaf.setStatus( "Completed" );
                             if ( !connection.refresh() || !download.delete() ) {
-                                ms.getItemTable()
-                                        .getModel()
-                                        .setValueAt(
-                                                "Completed (Couldn't be deleted)",
-                                                GuiOperations.getRowNumber( ms,
-                                                        download.getId() ), 5 );
+                                leaf.setStatus( "Completed (Couldn't be deleted)" );
                             }
                         } else {
                             if ( !download.isCanceled() ) {
-                                ms.getItemTable().getModel()
-                                        .setValueAt( "Error", rowNumber, 5 );
+                                leaf.setStatus( "Error" );
                             } else {
-                                ms.getItemTable()
-                                        .getModel()
-                                        .setValueAt( "Canceled/Skipped",
-                                                rowNumber, 5 );
+                                leaf.setStatus( "Canceled/Skipped" );
                             }
                         }
                     }

@@ -2,12 +2,17 @@ package util;
 
 import java.awt.Desktop;
 import java.io.File;
+import java.util.Iterator;
 
 import javax.swing.JOptionPane;
+import javax.swing.tree.DefaultMutableTreeNode;
+
+import api.Item;
 
 import communication.Download;
 import gui.ItemPanel;
 import gui.MainScreen;
+import gui.ItemPanel.LeafNode;
 
 public class GuiOperations {
     public static void connect(MainScreen ms) {
@@ -63,6 +68,13 @@ public class GuiOperations {
         }
         return -1;
     }
+    
+    public static LeafNode getLeaf(MainScreen ms, Item item) {
+        DefaultMutableTreeNode node = ms.getItemsPanel().getItemInTree( item );
+        if ( node != null && node instanceof LeafNode )
+            return ( LeafNode ) node;
+        return null;
+    }
 
     public static void cleanDownloadedItems(ItemPanel it) {
         /*
@@ -93,8 +105,7 @@ public class GuiOperations {
         */
     }
 
-    public static void pauseAll(ItemPanel it, boolean isPause) {
-        /*
+    public static void pauseAll(MainScreen ms, boolean isPause) {
         Iterator<Download> i = ms.getDownloadManager().getActiveDownloads().values().iterator();
         Download download;
         while (i.hasNext()) {
@@ -106,7 +117,6 @@ public class GuiOperations {
                     download.pause();
             }
         }
-        */
     }
 
     public static void cancelSelectedItem(ItemPanel it) {

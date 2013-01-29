@@ -172,16 +172,18 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
 
         private Item item;
         private float downloadPercentage = 0.0f;
+        private String status = "Unknown";
 
         public LeafNode( Object obj ) {
             super( obj );
             item = (Item) obj;
         }
 
-        public LeafNode( Object obj, float dwn ) {
+        public LeafNode( Object obj, float dwn, String st ) {
             super( obj );
             item = (Item) obj;
             downloadPercentage = dwn;
+            status = st;
         }
 
         public Item getItem() {
@@ -192,11 +194,20 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
             return downloadPercentage;
         }
 
+        public String getStatus() {
+            return status;
+        }
+
+        public void setStatus( String st ) {
+            this.status = st;
+        }
+
         public void setDownPerc( float dwnPerc ) {
             if ( dwnPerc > 1.0f )
                 downloadPercentage = 1.0f;
             else
                 downloadPercentage = dwnPerc;
+            System.out.println(dwnPerc);
             tree.repaint();
         }
 
@@ -262,14 +273,14 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
         pauseAllMenuItem.addActionListener( new ActionListener() {
             @Override
             public void actionPerformed( ActionEvent e ) {
-                GuiOperations.pauseAll( getItemPanel(), true );
+                GuiOperations.pauseAll( ms, true );
             }
         } );
         resumeAllMenuItem = new JMenuItem( "Resume all" );
         resumeAllMenuItem.addActionListener( new ActionListener() {
             @Override
             public void actionPerformed( ActionEvent e ) {
-                GuiOperations.pauseAll( getItemPanel(), false );
+                GuiOperations.pauseAll( ms, false );
             }
         } );
         cancelAllMenuItem = new JMenuItem( "Cancel all" );
@@ -461,17 +472,22 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
 
         Object obj = node.getUserObject();
         if ( obj instanceof Item ) {
+            
             Item nodeInfo = (Item) obj;
             TreePathDir path = null;
-            if ( node instanceof LeafNode )
+            String status = "";
+            
+            if ( node instanceof LeafNode ) {
                 path = ( (LeafNode) node ).getPathDir();
-            else
+                status = ( (LeafNode) node ).getStatus();
+            }
+            else 
                 path = new TreePathDir( node.getPath() );
+            
             infoPane.setText( "Name : " + nodeInfo.getName() + "\nId : "
                     + nodeInfo.getId() + "\nPid : " + nodeInfo.getParentId()
                     + "\nCreatedAt : " + nodeInfo.getCreatedAt() + "\nPath : "
-                    + path.toString() );
-
+                    + path.toString() + "\nStatus : " + status);
         }
     }
 
@@ -871,7 +887,8 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
                     curNodeCopy = new FolderNode( currentItem );
                 else
                     curNodeCopy = new LeafNode( currentItem,
-                            ( (LeafNode) curNode ).getDownPerc() );
+                            ( (LeafNode) curNode ).getDownPerc(),
+                            ( (LeafNode) curNode ).getStatus() );
 
                 Object objPar = ( (DefaultMutableTreeNode) curNode.getParent() )
                         .getUserObject();
