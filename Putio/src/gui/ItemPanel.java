@@ -441,24 +441,6 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
 
         // Add the split pane to this panel.
         add( splitPane );
-
-        switch ( UserPreferences.PREF_BEHAVIOR_SORT_BY ) {
-        case UserPreferences.OPTION_SORT_BY_DATE:
-            treeModel = new SortTreeModel( rootNode,
-                    new TreeStringComparatorDate() );
-            sortedByName = false;
-            sortByNameMenuItem.setEnabled( true );
-            sortByDateMenuItem.setEnabled( false );
-            break;
-        default:
-            treeModel = new SortTreeModel( rootNode,
-                    new TreeStringComparatorName() );
-            sortedByName = true;
-            sortByNameMenuItem.setEnabled( false );
-            sortByDateMenuItem.setEnabled( true );
-            break;
-        }
-        treeModel.addTreeModelListener( new MyTreeModelListener() );
     }
 
     /** Required by TreeSelectionListener interface. */
@@ -491,6 +473,24 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
     }
 
     public void initTree() {
+        switch ( UserPreferences.PREF_BEHAVIOR_SORT_BY ) {
+        case UserPreferences.OPTION_SORT_BY_DATE:
+            treeModel = new SortTreeModel( rootNode,
+                    new TreeStringComparatorDate() );
+            sortedByName = false;
+            sortByNameMenuItem.setEnabled( true );
+            sortByDateMenuItem.setEnabled( false );
+            break;
+        default:
+            treeModel = new SortTreeModel( rootNode,
+                    new TreeStringComparatorName() );
+            sortedByName = true;
+            sortByNameMenuItem.setEnabled( false );
+            sortByDateMenuItem.setEnabled( true );
+            break;
+        }
+        treeModel.addTreeModelListener( new MyTreeModelListener() );
+        
         waitTreeModel.setRoot( waitNode );
         tree.setModel( waitTreeModel );
         tree.setEditable( false );

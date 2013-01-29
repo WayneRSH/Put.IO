@@ -217,7 +217,7 @@ public class DownloadManager implements Runnable {
         if ( isQueueNecessary( item ) ) {
             LeafNode leaf = (LeafNode) ms.getItemsPanel().getItemInTree( item );
             String path = UserPreferences.PREF_DOWNLOAD_TARGET + leaf.getPathDir().toString();
-            Download d = new Download( UserPreferences.PREF_USERTOKEN, item,
+            Download d = new Download( UserPreferences.PREF_USERTOKEN, item, leaf,
                     UserPreferences.PREF_DOWNLOAD_TARGET, connection );
             downloadQueue.add( d );
             sessionDownloads.put( d.getId(), d );

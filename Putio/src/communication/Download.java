@@ -1,14 +1,14 @@
 package communication;
 
+import gui.ItemPanel.LeafNode;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.net.Authenticator;
 import java.net.MalformedURLException;
-import java.net.PasswordAuthentication;
 
 import javax.swing.JOptionPane;
 
@@ -24,6 +24,9 @@ public class Download implements Runnable {
 
     /** Corresponding put.io item */
     private Item item;
+    
+    /** Corresponding leaf in tree */
+    private LeafNode leaf;
 
     /** Global connection */
     private Connection connection;
@@ -66,6 +69,13 @@ public class Download implements Runnable {
      */
     public Item getItem() {
         return item;
+    }
+    
+    /**
+     * @return the leaf
+     */
+    public LeafNode getLeaf() {
+        return leaf;
     }
 
     /**
@@ -236,10 +246,11 @@ public class Download implements Runnable {
         return parts;
     }
 
-    public Download( String token, Item item, String path,
+    public Download( String token, Item item, LeafNode leaf, String path,
             Connection connection ) {
         this.token = token;
         this.item = item;
+        this.leaf = leaf;
         this.filename = item.getName();
         this.path = path;
         this.url = item.getDownloadUrl( token );
@@ -261,13 +272,6 @@ public class Download implements Runnable {
     private void startDownload() throws MalformedURLException, IOException {
         try {
             isActive = true;
-//            Authenticator.setDefault( new Authenticator() {
-//                @Override
-//                protected PasswordAuthentication getPasswordAuthentication() {
-//                    return new PasswordAuthentication( username, password
-//                            .toCharArray() );
-//                }
-//            } );
             File f = new File( path + "\\" + filename );
             if ( f.exists() && f.isFile() ) {
                 if ( !UserPreferences.PREF_DONT_ASK_OVERWRITE ) {
@@ -286,6 +290,7 @@ public class Download implements Runnable {
                                     JOptionPane.QUESTION_MESSAGE ) ) {
                     case JOptionPane.NO_OPTION:
                         cancel();
+                        leaf.setDownPerc( 1.0f );
                         throw new Exception( "File already exists!" );
                     }
                 } else {
@@ -294,6 +299,7 @@ public class Download implements Runnable {
                         break;
                     case UserPreferences.OPTION_SKIP:
                         cancel();
+                        leaf.setDownPerc( 1.0f );
                         throw new Exception( "File already exists!" );
                     case UserPreferences.OPTION_SKIP_DELETE:
                         cancel();
@@ -303,6 +309,7 @@ public class Download implements Runnable {
                     case UserPreferences.OPTION_SKIP_SAME_SIZE:
                         if ( f.length() == totalLength ) {
                             cancel();
+                            leaf.setDownPerc( 1.0f );
                             throw new Exception(
                                     "File already exists with same size!" );
                         }
