@@ -36,7 +36,6 @@ public class Item implements ObjectFactory
 {
     private Boolean isShared;
     private String name;
-    private String downloadUrl;
     private String parentId;
     private String contentType;
     private String fileIconUrl;
@@ -201,7 +200,6 @@ public class Item implements ObjectFactory
                 i.dir = true;
             else
                 i.dir = false;
-            i.downloadUrl = "";
             i.fileIconUrl = stringVal( map.get( "icon" ) );
             i.id = stringVal( map.get( "id" ) );
             i.parentId = stringVal( map.get( "parent_id" ) );;
@@ -229,9 +227,10 @@ public class Item implements ObjectFactory
         return name;
     }
 
-    public String getDownloadUrl()
+    public String getDownloadUrl(String token)
     {
-        return downloadUrl;
+        String url = Requestor.getBaseAPI() + "files/" + this.id + "/download?oauth_token=" + token;
+        return url;
     }
 
     public String getParentId()

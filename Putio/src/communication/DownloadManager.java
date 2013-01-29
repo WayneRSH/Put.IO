@@ -10,6 +10,7 @@ import java.util.Queue;
 
 import javax.swing.JOptionPane;
 
+import gui.ItemPanel.LeafNode;
 import gui.MainScreen;
 import util.GuiOperations;
 import util.UserPreferences;
@@ -217,8 +218,9 @@ public class DownloadManager implements Runnable {
     private void addItemsToQueue( Item item ) {
         // if (!item.isDir()) {
         if ( isQueueNecessary( item ) ) {
-            Download d = new Download( UserPreferences.PREF_USERNAME,
-                    UserPreferences.PREF_PASSWORD, item,
+            LeafNode leaf = (LeafNode) ms.getItemsPanel().getItemInTree( item );
+            String path = UserPreferences.PREF_DOWNLOAD_TARGET + leaf.getPathDir().toString();
+            Download d = new Download( UserPreferences.PREF_USERTOKEN, item,
                     UserPreferences.PREF_DOWNLOAD_TARGET, connection );
             downloadQueue.add( d );
             sessionDownloads.put( d.getId(), d );

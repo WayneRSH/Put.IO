@@ -753,7 +753,7 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
         }
     }
 
-    private DefaultMutableTreeNode getItemInTree( Item item ) {
+    public DefaultMutableTreeNode getItemInTree( Item item ) {
         for ( @SuppressWarnings( "rawtypes" )
         Enumeration e = ( (DefaultMutableTreeNode) treeModel.getRoot() )
                 .breadthFirstEnumeration(); e.hasMoreElements(); ) {

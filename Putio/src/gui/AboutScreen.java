@@ -39,7 +39,7 @@ public class AboutScreen extends JFrame {
 			"This program is completely free<BR>" +
 			"<BR>" +
 			"<STRONG>Libraries</STRONG><BR>" +
-			"<STRONG>libputio 0.1</STRONG> - http://sourceforge.net/projects/libputio<BR>" +
+			"<STRONG>(based on) libputio 0.1</STRONG> - http://sourceforge.net/projects/libputio<BR>" +
 			"<STRONG>Flexjson 2.0</STRONG> - http://flexjson.sourceforge.net</CENTER></HTML>", JLabel.CENTER);
 	aboutTextLabel.setHorizontalAlignment(JLabel.CENTER);
 	aboutTextPanel.add(aboutTextLabel);

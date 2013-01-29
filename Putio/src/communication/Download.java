@@ -32,8 +32,7 @@ public class Download implements Runnable {
     private String filename;
     private String path;
     private String url;
-    private String username;
-    private String password;
+    private String token;
     private String contentType;
     private String putioId;
 
@@ -115,33 +114,18 @@ public class Download implements Runnable {
     }
 
     /**
-     * @return the username
+     * @return the token
      */
-    public String getUsername() {
-        return username;
+    public String getToken() {
+        return token;
     }
 
     /**
      * @param username
      *            the username to set
      */
-    public void setUsername( String username ) {
-        this.username = username;
-    }
-
-    /**
-     * @return the password
-     */
-    public String getPassword() {
-        return password;
-    }
-
-    /**
-     * @param password
-     *            the password to set
-     */
-    public void setPassword( String password ) {
-        this.password = password;
+    public void setToken( String token ) {
+        this.token = token;
     }
 
     /**
@@ -252,14 +236,13 @@ public class Download implements Runnable {
         return parts;
     }
 
-    public Download( String username, String password, Item item, String path,
+    public Download( String token, Item item, String path,
             Connection connection ) {
-        this.username = username;
-        this.password = password;
+        this.token = token;
         this.item = item;
         this.filename = item.getName();
         this.path = path;
-        this.url = item.getDownloadUrl();
+        this.url = item.getDownloadUrl( token );
         this.contentType = item.getContentType();
         this.totalLength = item.getSize();
         this.putioId = item.getId();
@@ -278,13 +261,13 @@ public class Download implements Runnable {
     private void startDownload() throws MalformedURLException, IOException {
         try {
             isActive = true;
-            Authenticator.setDefault( new Authenticator() {
-                @Override
-                protected PasswordAuthentication getPasswordAuthentication() {
-                    return new PasswordAuthentication( username, password
-                            .toCharArray() );
-                }
-            } );
+//            Authenticator.setDefault( new Authenticator() {
+//                @Override
+//                protected PasswordAuthentication getPasswordAuthentication() {
+//                    return new PasswordAuthentication( username, password
+//                            .toCharArray() );
+//                }
+//            } );
             File f = new File( path + "\\" + filename );
             if ( f.exists() && f.isFile() ) {
                 if ( !UserPreferences.PREF_DONT_ASK_OVERWRITE ) {
