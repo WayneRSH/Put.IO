@@ -64,6 +64,11 @@ public class Download implements Runnable {
     /** Download part threads */
     private Thread[] partThreads;
 
+    /** Download resume */
+    private DownloadResumer downResume;
+    /** Download resume thread */
+    private Thread downResThread; 
+    
     /**
      * @return the item
      */
@@ -326,47 +331,57 @@ public class Download implements Runnable {
                     }
                 }
             }
-
-            partThreads = new Thread[ UserPreferences.PREF_DOWNLOAD_PART_COUNT ];
-            parts = new DownloadPart[ UserPreferences.PREF_DOWNLOAD_PART_COUNT ];
-            long regularSize = Math.round( (double) totalLength
-                    / UserPreferences.PREF_DOWNLOAD_PART_COUNT );
-            long sizeOfLastPart = ( totalLength - regularSize
-                    * ( UserPreferences.PREF_DOWNLOAD_PART_COUNT - 1 ) );
-            for ( int i = 0; i < partThreads.length; i++ ) {
-                if ( i != partThreads.length - 1 ) {
-                    parts[ i ] = new DownloadPart( i + 1, this,
-                            ( i * regularSize ), regularSize );
-                } else {
-                    parts[ i ] = new DownloadPart( i + 1, this,
-                            ( i * regularSize ), sizeOfLastPart );
-                }
-                partThreads[ i ] = new Thread( parts[ i ] );
-                partThreads[ i ].start();
-            }
-            while ( loopOverAllParts() && !isFaulty ) {
-                // Wait until all parts are finished
+            
+            downResume = new DownloadResumer( this, totalLength );
+            downResThread = new Thread( downResume );
+            downResThread.start();
+            
+            while ( loopResume() && !isFaulty ) {
                 Thread.sleep( 1000 );
             }
             isCompleted = true;
-            // Merge parts
-            FileOutputStream fout = new FileOutputStream( f.getPath() );
-            File partFile;
-            FileInputStream finp;
-            int length;
-            byte[] buff = new byte[ 8000 ];
-            for ( int i = 0; i < parts.length; i++ ) {
-                partFile = new File( parts[ i ].getPath() );
-                if ( !isFaulty ) {
-                    finp = new FileInputStream( partFile );
-                    while ( ( length = finp.read( buff ) ) > 0 ) {
-                        fout.write( buff, 0, length );
-                    }
-                    finp.close();
-                }
-                partFile.delete();
-            }
-            fout.close();
+
+//            partThreads = new Thread[ UserPreferences.PREF_DOWNLOAD_PART_COUNT ];
+//            parts = new DownloadPart[ UserPreferences.PREF_DOWNLOAD_PART_COUNT ];
+//            long regularSize = Math.round( (double) totalLength
+//                    / UserPreferences.PREF_DOWNLOAD_PART_COUNT );
+//            long sizeOfLastPart = ( totalLength - regularSize
+//                    * ( UserPreferences.PREF_DOWNLOAD_PART_COUNT - 1 ) );
+//            for ( int i = 0; i < partThreads.length; i++ ) {
+//                if ( i != partThreads.length - 1 ) {
+//                    parts[ i ] = new DownloadPart( i + 1, this,
+//                            ( i * regularSize ), regularSize );
+//                } else {
+//                    parts[ i ] = new DownloadPart( i + 1, this,
+//                            ( i * regularSize ), sizeOfLastPart );
+//                }
+//                partThreads[ i ] = new Thread( parts[ i ] );
+//                partThreads[ i ].start();
+//            }
+//            while ( loopOverAllParts() && !isFaulty ) {
+//                // Wait until all parts are finished
+//                Thread.sleep( 1000 );
+//            }
+//            isCompleted = true;
+//            // Merge parts
+//            FileOutputStream fout = new FileOutputStream( f.getPath() );
+//            File partFile;
+//            FileInputStream finp;
+//            int length;
+//            byte[] buff = new byte[ 8000 ];
+//            for ( int i = 0; i < parts.length; i++ ) {
+//                partFile = new File( parts[ i ].getPath() );
+//                if ( !isFaulty ) {
+//                    finp = new FileInputStream( partFile );
+//                    while ( ( length = finp.read( buff ) ) > 0 ) {
+//                        fout.write( buff, 0, length );
+//                    }
+//                    finp.close();
+//                }
+//                partFile.delete();
+//            }
+//            fout.close();
+            
             // Delete file in case of error
             if ( isFaulty )
                 f.delete();
@@ -390,6 +405,13 @@ public class Download implements Runnable {
             retVal |= partThreads[ i ].isAlive();
             isFaulty |= parts[ i ].isFaulty();
         }
+        return retVal;
+    }
+    
+    private boolean loopResume() {
+        boolean retVal = false;
+        retVal |= downResThread.isAlive();
+        isFaulty |= downResume.isFaulty();
         return retVal;
     }
 

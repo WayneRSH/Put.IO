@@ -114,9 +114,8 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
     private class NodeRenderer extends DefaultTreeCellRenderer {
         private static final long serialVersionUID = 3297546151711973066L;
 
-        public Component getTreeCellRendererComponent( JTree tree,
-                Object value, boolean sel, boolean expanded, boolean leaf,
-                int row, boolean hasFocus ) {
+        public Component getTreeCellRendererComponent( JTree tree, Object value, boolean sel,
+                boolean expanded, boolean leaf, int row, boolean hasFocus ) {
 
             if ( value instanceof LeafNode ) {
                 // JPanel to show the data
@@ -126,15 +125,16 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
                 panel.setBackground( new Color( 0, 0, 0, 0 ) );
                 panel.setEnabled( tree.isEnabled() );
                 return panel;
-            } else {
-                super.getTreeCellRendererComponent( tree, value, sel, expanded,
-                        leaf, row, hasFocus );
+            }
+            else {
+                super.getTreeCellRendererComponent( tree, value, sel, expanded, leaf, row, hasFocus );
 
                 // Custom folder icon
                 if ( value instanceof FolderNode ) {
                     if ( expanded ) {
                         this.setIcon( openFolderIcon );
-                    } else {
+                    }
+                    else {
                         setIcon( closedFolderIcon );
                     }
                 }
@@ -148,7 +148,8 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
                     if ( ( (DefaultMutableTreeNode) value ).isRoot() ) {
                         setBackgroundSelectionColor( null );
                         setForeground( Color.BLACK );
-                    } else {
+                    }
+                    else {
                         setBackgroundSelectionColor( colorSel );
                     }
                     setBorderSelectionColor( null );
@@ -200,6 +201,7 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
 
         public void setStatus( String st ) {
             this.status = st;
+            printInfo();
         }
 
         public void setDownPerc( float dwnPerc ) {
@@ -213,6 +215,18 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
         public TreePathDir getPathDir() {
             TreePathDir path = new TreePathDir( this.getPath() );
             return path;
+        }
+
+        private void printInfo() {
+            TreePath p = tree.getSelectionPath();
+            if ( p != null && (LeafNode) p.getLastPathComponent() == this )
+                infoPane.setText( "Name : " + item.getName() + "\nId : " + item.getId() + "\nPid : "
+                        + item.getParentId() + "\nCreatedAt : " + item.getCreatedAt() + "\nPath : "
+                        + getPathDir().toString() + "\nStatus : " + getStatus() );
+        }
+
+        public void focus() {
+            expandSingleNode( this );
         }
     }
 
@@ -289,8 +303,7 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
                 GuiOperations.cancelAll( getItemPanel() );
             }
         } );
-        cleanDownloadedMenuItem = new JMenuItem(
-                "Clean downloaded/canceled files" );
+        cleanDownloadedMenuItem = new JMenuItem( "Clean downloaded/canceled files" );
         cleanDownloadedMenuItem.addActionListener( new ActionListener() {
             @Override
             public void actionPerformed( ActionEvent e ) {
@@ -331,8 +344,7 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
         waitTreeModel = new DefaultTreeModel( waitNode );
         tree = new JTree( waitTreeModel );
         tree.setEditable( false );
-        tree.getSelectionModel().setSelectionMode(
-                TreeSelectionModel.DISCONTIGUOUS_TREE_SELECTION );
+        tree.getSelectionModel().setSelectionMode( TreeSelectionModel.DISCONTIGUOUS_TREE_SELECTION );
         // Enable tool tips
         ToolTipManager.sharedInstance().registerComponent( tree );
         tree.setRowHeight( 0 );
@@ -352,15 +364,15 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
                     TreePath selTmp = tree.getPathForRow( selRow );
                     TreePathDir selPath = new TreePathDir( selTmp.getPath() );
                     if ( e.getClickCount() == 1 ) {
-                        System.out.println( "1 clic " + e.getButton() + " : "
-                                + selRow + " " + selPath.toString() );
+                        System.out.println( "1 clic " + e.getButton() + " : " + selRow + " "
+                                + selPath.toString() );
                         tree.setSelectionPath( selTmp );
                         pauseOrResumeDownloadMenuItem.setEnabled( true );
                         cancelDownloadMenuItem.setEnabled( true );
                         removeDownloadMenuItem.setEnabled( true );
-                    } else if ( e.getClickCount() == 2 ) {
-                        DefaultMutableTreeNode node = (DefaultMutableTreeNode) selTmp
-                                .getLastPathComponent();
+                    }
+                    else if ( e.getClickCount() == 2 ) {
+                        DefaultMutableTreeNode node = (DefaultMutableTreeNode) selTmp.getLastPathComponent();
                         if ( node instanceof LeafNode ) {
                             LeafNode leaf = (LeafNode) node;
                             final Item item = (Item) leaf.getUserObject();
@@ -371,22 +383,22 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
                                         LeafNode leaf = (LeafNode) getItemInTree( item );
                                         while ( leaf.getDownPerc() < 1.0f ) {
                                             leaf = (LeafNode) getItemInTree( item );
-                                            ms.getItemsPanel().setDownPerc(
-                                                    item,
-                                                    leaf.getDownPerc() + 0.01f );
+                                            ms.getItemsPanel().setDownPerc( item, leaf.getDownPerc() + 0.01f );
                                             Thread.sleep( 100 );
                                         }
-                                    } catch ( Exception e ) {
+                                    }
+                                    catch ( Exception e ) {
                                         System.out.println( e.toString() );
                                     }
                                 }
                             } );
                             test.start();
                         }
-                        System.out.println( "2 clic " + e.getButton() + " : "
-                                + selRow + " " + selPath.toString() );
+                        System.out.println( "2 clic " + e.getButton() + " : " + selRow + " "
+                                + selPath.toString() );
                     }
-                } else {
+                }
+                else {
                     pauseOrResumeDownloadMenuItem.setEnabled( false );
                     cancelDownloadMenuItem.setEnabled( false );
                     removeDownloadMenuItem.setEnabled( false );
@@ -400,16 +412,13 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
 
         tree.addTreeWillExpandListener( new TreeWillExpandListener() {
             @Override
-            public void treeWillExpand( TreeExpansionEvent event )
-                    throws ExpandVetoException {
+            public void treeWillExpand( TreeExpansionEvent event ) throws ExpandVetoException {
             }
 
             @Override
-            public void treeWillCollapse( TreeExpansionEvent event )
-                    throws ExpandVetoException {
+            public void treeWillCollapse( TreeExpansionEvent event ) throws ExpandVetoException {
                 TreePath path = event.getPath();
-                DefaultMutableTreeNode node = (DefaultMutableTreeNode) path
-                        .getLastPathComponent();
+                DefaultMutableTreeNode node = (DefaultMutableTreeNode) path.getLastPathComponent();
                 if ( node.equals( (DefaultMutableTreeNode) treeModel.getRoot() ) )
                     throw new ExpandVetoException( event );
             }
@@ -445,52 +454,48 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
 
     /** Required by TreeSelectionListener interface. */
     public void valueChanged( TreeSelectionEvent e ) {
-        DefaultMutableTreeNode node = (DefaultMutableTreeNode) tree
-                .getLastSelectedPathComponent();
+        DefaultMutableTreeNode node = (DefaultMutableTreeNode) tree.getLastSelectedPathComponent();
 
         if ( node == null )
             return;
 
         Object obj = node.getUserObject();
         if ( obj instanceof Item ) {
-            
+
             Item nodeInfo = (Item) obj;
             TreePathDir path = null;
             String status = "";
-            
+
             if ( node instanceof LeafNode ) {
                 path = ( (LeafNode) node ).getPathDir();
                 status = ( (LeafNode) node ).getStatus();
             }
-            else 
+            else
                 path = new TreePathDir( node.getPath() );
-            
-            infoPane.setText( "Name : " + nodeInfo.getName() + "\nId : "
-                    + nodeInfo.getId() + "\nPid : " + nodeInfo.getParentId()
-                    + "\nCreatedAt : " + nodeInfo.getCreatedAt() + "\nPath : "
-                    + path.toString() + "\nStatus : " + status);
+
+            infoPane.setText( "Name : " + nodeInfo.getName() + "\nId : " + nodeInfo.getId() + "\nPid : "
+                    + nodeInfo.getParentId() + "\nCreatedAt : " + nodeInfo.getCreatedAt() + "\nPath : "
+                    + path.toString() + "\nStatus : " + status );
         }
     }
 
     public void initTree() {
         switch ( UserPreferences.PREF_BEHAVIOR_SORT_BY ) {
         case UserPreferences.OPTION_SORT_BY_DATE:
-            treeModel = new SortTreeModel( rootNode,
-                    new TreeStringComparatorDate() );
+            treeModel = new SortTreeModel( rootNode, new TreeStringComparatorDate() );
             sortedByName = false;
             sortByNameMenuItem.setEnabled( true );
             sortByDateMenuItem.setEnabled( false );
             break;
         default:
-            treeModel = new SortTreeModel( rootNode,
-                    new TreeStringComparatorName() );
+            treeModel = new SortTreeModel( rootNode, new TreeStringComparatorName() );
             sortedByName = true;
             sortByNameMenuItem.setEnabled( false );
             sortByDateMenuItem.setEnabled( true );
             break;
         }
         treeModel.addTreeModelListener( new MyTreeModelListener() );
-        
+
         waitTreeModel.setRoot( waitNode );
         tree.setModel( waitTreeModel );
         tree.setEditable( false );
@@ -522,7 +527,8 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
                 fillSharedTree();
 
             treeLoaded = true;
-        } catch ( Exception e ) {
+        }
+        catch ( Exception e ) {
             System.out.println( e.toString() );
         }
     }
@@ -542,19 +548,17 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
             if ( ( searchNode = getItemInTree( currentItem ) ) == null ) {
 
                 // If the item is shared and we don't want to add shared items
-                if ( ( isParentShared( currentItem, rootItems ) || currentItem
-                        .isShared() ) && !UserPreferences.PREF_LOAD_SHARED ) {
+                if ( ( isParentShared( currentItem, rootItems ) || currentItem.isShared() )
+                        && !UserPreferences.PREF_LOAD_SHARED ) {
                     currentItem.setShared( true );
                     continue;
                 }
 
                 // Check if the item is a child
                 for ( @SuppressWarnings( "rawtypes" )
-                Enumeration e = ( (DefaultMutableTreeNode) treeModel.getRoot() )
-                        .breadthFirstEnumeration(); e.hasMoreElements()
-                        && searchNode == null; ) {
-                    DefaultMutableTreeNode curNode = (DefaultMutableTreeNode) e
-                            .nextElement();
+                Enumeration e = ( (DefaultMutableTreeNode) treeModel.getRoot() ).breadthFirstEnumeration(); e
+                        .hasMoreElements() && searchNode == null; ) {
+                    DefaultMutableTreeNode curNode = (DefaultMutableTreeNode) e.nextElement();
                     Object nodeInfo = curNode.getUserObject();
                     if ( nodeInfo instanceof Item ) {
                         Item itTmp = (Item) nodeInfo;
@@ -571,8 +575,7 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
                 // If it's not a child or we didn't find the parent in the
                 // nodes, we put it in the root
                 if ( searchNode == null ) {
-                    treeModel.insertNodeInto( itemNode,
-                            (DefaultMutableTreeNode) treeModel.getRoot() );
+                    treeModel.insertNodeInto( itemNode, (DefaultMutableTreeNode) treeModel.getRoot() );
                 }
 
                 // System.out.println( "Add: " + currentItem.getName() + " id:"
@@ -589,10 +592,8 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
         // Reorder the nodes, the lone children should be on the root,
         // so we just check the root children
         for ( @SuppressWarnings( "rawtypes" )
-        Enumeration e = ( (DefaultMutableTreeNode) treeModel.getRoot() )
-                .children(); e.hasMoreElements(); ) {
-            DefaultMutableTreeNode curNode = (DefaultMutableTreeNode) e
-                    .nextElement();
+        Enumeration e = ( (DefaultMutableTreeNode) treeModel.getRoot() ).children(); e.hasMoreElements(); ) {
+            DefaultMutableTreeNode curNode = (DefaultMutableTreeNode) e.nextElement();
             Object nodeInfo = curNode.getUserObject();
             if ( nodeInfo instanceof Item ) {
                 Item itTmp = (Item) nodeInfo;
@@ -602,11 +603,9 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
                 if ( !itTmp.getParentId().equals( "0" ) ) {
                     DefaultMutableTreeNode searchNode = null;
                     for ( @SuppressWarnings( "rawtypes" )
-                    Enumeration ePar = ( (DefaultMutableTreeNode) treeModel
-                            .getRoot() ).breadthFirstEnumeration(); ePar
-                            .hasMoreElements() && searchNode == null; ) {
-                        DefaultMutableTreeNode curParNode = (DefaultMutableTreeNode) ePar
-                                .nextElement();
+                    Enumeration ePar = ( (DefaultMutableTreeNode) treeModel.getRoot() )
+                            .breadthFirstEnumeration(); ePar.hasMoreElements() && searchNode == null; ) {
+                        DefaultMutableTreeNode curParNode = (DefaultMutableTreeNode) ePar.nextElement();
                         Object nodeParInfo = curParNode.getUserObject();
                         if ( nodeParInfo instanceof Item ) {
                             Item itParTmp = (Item) nodeParInfo;
@@ -638,14 +637,12 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
         // If the tree is loaded, we should clean items deleted on the server
         if ( treeLoaded ) {
             // Same as before, we stock nodes to delete in a list
-            List<DefaultMutableTreeNode> delList = new ArrayList<DefaultMutableTreeNode>(
-                    1 );
+            List<DefaultMutableTreeNode> delList = new ArrayList<DefaultMutableTreeNode>( 1 );
 
             for ( @SuppressWarnings( "rawtypes" )
-            Enumeration e = ( (DefaultMutableTreeNode) treeModel.getRoot() )
-                    .depthFirstEnumeration(); e.hasMoreElements(); ) {
-                DefaultMutableTreeNode curNode = (DefaultMutableTreeNode) e
-                        .nextElement();
+            Enumeration e = ( (DefaultMutableTreeNode) treeModel.getRoot() ).depthFirstEnumeration(); e
+                    .hasMoreElements(); ) {
+                DefaultMutableTreeNode curNode = (DefaultMutableTreeNode) e.nextElement();
                 Object curNodeItem = curNode.getUserObject();
                 if ( curNodeItem instanceof Item ) {
                     Item curItem = (Item) curNodeItem;
@@ -671,10 +668,8 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
 
     private void fillSharedTree() {
         for ( @SuppressWarnings( "rawtypes" )
-        Enumeration e = ( (DefaultMutableTreeNode) treeModel.getRoot() )
-                .children(); e.hasMoreElements(); ) {
-            DefaultMutableTreeNode curNode = (DefaultMutableTreeNode) e
-                    .nextElement();
+        Enumeration e = ( (DefaultMutableTreeNode) treeModel.getRoot() ).children(); e.hasMoreElements(); ) {
+            DefaultMutableTreeNode curNode = (DefaultMutableTreeNode) e.nextElement();
             Object nodeInfo = curNode.getUserObject();
             if ( nodeInfo instanceof Item ) {
                 Item itTmp = (Item) nodeInfo;
@@ -692,7 +687,8 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
         List<Item> li = null;
         try {
             li = ( (Item) node.getUserObject() ).listChildren();
-        } catch ( Exception e ) {
+        }
+        catch ( Exception e ) {
             li = null;
             System.out.println( e.toString() );
         }
@@ -700,13 +696,11 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
         if ( li != null ) {
 
             // First, we should clean deleted items
-            List<DefaultMutableTreeNode> delList = new ArrayList<DefaultMutableTreeNode>(
-                    1 );
+            List<DefaultMutableTreeNode> delList = new ArrayList<DefaultMutableTreeNode>( 1 );
 
             for ( @SuppressWarnings( "rawtypes" )
             Enumeration e = node.children(); e.hasMoreElements(); ) {
-                DefaultMutableTreeNode curNode = (DefaultMutableTreeNode) e
-                        .nextElement();
+                DefaultMutableTreeNode curNode = (DefaultMutableTreeNode) e.nextElement();
                 Object curNodeItem = curNode.getUserObject();
                 if ( curNodeItem instanceof Item ) {
                     Item curItem = (Item) curNodeItem;
@@ -744,18 +738,18 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
                     // ((Item)node.getUserObject()).getId() );
                     if ( childItem.isDir() )
                         addChildren( childNode );
-                } else if ( childItem.isDir() ) {
+                }
+                else if ( childItem.isDir() ) {
                     addChildren( childNode );
                 }
             }
-        } else {
-            List<DefaultMutableTreeNode> delList = new ArrayList<DefaultMutableTreeNode>(
-                    1 );
+        }
+        else {
+            List<DefaultMutableTreeNode> delList = new ArrayList<DefaultMutableTreeNode>( 1 );
 
             for ( @SuppressWarnings( "rawtypes" )
             Enumeration e = node.children(); e.hasMoreElements(); ) {
-                DefaultMutableTreeNode curNode = (DefaultMutableTreeNode) e
-                        .nextElement();
+                DefaultMutableTreeNode curNode = (DefaultMutableTreeNode) e.nextElement();
                 delList.add( curNode );
             }
 
@@ -770,10 +764,9 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
 
     public DefaultMutableTreeNode getItemInTree( Item item ) {
         for ( @SuppressWarnings( "rawtypes" )
-        Enumeration e = ( (DefaultMutableTreeNode) treeModel.getRoot() )
-                .breadthFirstEnumeration(); e.hasMoreElements(); ) {
-            DefaultMutableTreeNode curNode = (DefaultMutableTreeNode) e
-                    .nextElement();
+        Enumeration e = ( (DefaultMutableTreeNode) treeModel.getRoot() ).breadthFirstEnumeration(); e
+                .hasMoreElements(); ) {
+            DefaultMutableTreeNode curNode = (DefaultMutableTreeNode) e.nextElement();
             Object nodeInfo = curNode.getUserObject();
             if ( nodeInfo instanceof Item ) {
                 Item itTmp = (Item) nodeInfo;
@@ -785,13 +778,11 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
         return null;
     }
 
-    private DefaultMutableTreeNode getItemInTree( Item item,
-            SortTreeModel treeMod ) {
+    private DefaultMutableTreeNode getItemInTree( Item item, SortTreeModel treeMod ) {
         for ( @SuppressWarnings( "rawtypes" )
-        Enumeration e = ( (DefaultMutableTreeNode) treeMod.getRoot() )
-                .breadthFirstEnumeration(); e.hasMoreElements(); ) {
-            DefaultMutableTreeNode curNode = (DefaultMutableTreeNode) e
-                    .nextElement();
+        Enumeration e = ( (DefaultMutableTreeNode) treeMod.getRoot() ).breadthFirstEnumeration(); e
+                .hasMoreElements(); ) {
+            DefaultMutableTreeNode curNode = (DefaultMutableTreeNode) e.nextElement();
             Object nodeInfo = curNode.getUserObject();
             if ( nodeInfo instanceof Item ) {
                 Item itTmp = (Item) nodeInfo;
@@ -817,8 +808,7 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
         ListIterator<Item> itList = list.listIterator();
         while ( itList.hasNext() ) {
             Item curItem = itList.next();
-            if ( curItem.getId().equals( item.getParentId() )
-                    && curItem.isShared() )
+            if ( curItem.getId().equals( item.getParentId() ) && curItem.isShared() )
                 return true;
         }
         return false;
@@ -835,10 +825,9 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
     public List<Item> getItems() {
         List<Item> list = new ArrayList<Item>( 1 );
         for ( @SuppressWarnings( "rawtypes" )
-        Enumeration e = ( (DefaultMutableTreeNode) treeModel.getRoot() )
-                .breadthFirstEnumeration(); e.hasMoreElements(); ) {
-            DefaultMutableTreeNode curNode = (DefaultMutableTreeNode) e
-                    .nextElement();
+        Enumeration e = ( (DefaultMutableTreeNode) treeModel.getRoot() ).depthFirstEnumeration(); e
+                .hasMoreElements(); ) {
+            DefaultMutableTreeNode curNode = (DefaultMutableTreeNode) e.nextElement();
             if ( curNode instanceof LeafNode ) {
                 list.add( ( (LeafNode) curNode ).getItem() );
             }
@@ -861,41 +850,37 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
         DefaultMutableTreeNode tmpNode = null;
         DefaultMutableTreeNode curNodeCopy = null;
         SortTreeModel treeModelTmp = null;
-        DefaultMutableTreeNode rootTmp = new DefaultMutableTreeNode(
-                rootNodeTxt );
+        DefaultMutableTreeNode rootTmp = new DefaultMutableTreeNode( rootNodeTxt );
         if ( order.equals( "name" ) ) {
-            treeModelTmp = new SortTreeModel( rootTmp,
-                    new TreeStringComparatorName() );
+            treeModelTmp = new SortTreeModel( rootTmp, new TreeStringComparatorName() );
             sortedByName = true;
-        } else {
-            treeModelTmp = new SortTreeModel( rootTmp,
-                    new TreeStringComparatorDate() );
+        }
+        else {
+            treeModelTmp = new SortTreeModel( rootTmp, new TreeStringComparatorDate() );
             sortedByName = false;
         }
         sortByNameMenuItem.setEnabled( !sortedByName );
         sortByDateMenuItem.setEnabled( sortedByName );
         for ( @SuppressWarnings( "rawtypes" )
-        Enumeration e = ( (DefaultMutableTreeNode) treeModel.getRoot() )
-                .breadthFirstEnumeration(); e.hasMoreElements(); ) {
-            DefaultMutableTreeNode curNode = (DefaultMutableTreeNode) e
-                    .nextElement();
+        Enumeration e = ( (DefaultMutableTreeNode) treeModel.getRoot() ).breadthFirstEnumeration(); e
+                .hasMoreElements(); ) {
+            DefaultMutableTreeNode curNode = (DefaultMutableTreeNode) e.nextElement();
             Object obj = curNode.getUserObject();
             if ( obj instanceof Item ) {
                 Item currentItem = (Item) obj;
                 if ( currentItem.isDir() )
                     curNodeCopy = new FolderNode( currentItem );
                 else
-                    curNodeCopy = new LeafNode( currentItem,
-                            ( (LeafNode) curNode ).getDownPerc(),
+                    curNodeCopy = new LeafNode( currentItem, ( (LeafNode) curNode ).getDownPerc(),
                             ( (LeafNode) curNode ).getStatus() );
 
-                Object objPar = ( (DefaultMutableTreeNode) curNode.getParent() )
-                        .getUserObject();
+                Object objPar = ( (DefaultMutableTreeNode) curNode.getParent() ).getUserObject();
                 if ( objPar instanceof Item ) {
                     if ( ( tmpNode = getItemInTree( (Item) objPar, treeModelTmp ) ) != null ) {
                         treeModelTmp.insertNodeInto( curNodeCopy, tmpNode );
                     }
-                } else {
+                }
+                else {
                     treeModelTmp.insertNodeInto( curNodeCopy, rootTmp );
                 }
             }
@@ -917,5 +902,16 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
         LeafNode leaf = (LeafNode) getItemInTree( item );
         leaf = (LeafNode) getItemInTree( item );
         leaf.setDownPerc( down );
+    }
+
+    private void expandSingleNode( DefaultMutableTreeNode node ) {
+        if ( node == null )
+            return;
+
+        if ( node.isLeaf() && node != (DefaultMutableTreeNode) treeModel.getRoot() )
+            node = (DefaultMutableTreeNode) node.getParent();
+
+        tree.expandPath( new TreePath( node.getPath() ) );
+        tree.scrollPathToVisible( new TreePath( node.getPath() ) );
     }
 }

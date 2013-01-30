@@ -104,11 +104,13 @@ public class DownloadManager implements Runnable {
                             if ( !UserPreferences.PREF_FILE_SIZE_CHECK ) {
                                 activeDownloads.put( d.getId(), d );
                                 startDownload( d );
-                            } else {
+                            }
+                            else {
                                 if ( d.getTotalLength() >= ( (long) ( UserPreferences.PREF_FILE_SIZE_FOR_CHECK * 1048576 ) ) ) {
                                     activeDownloads.put( d.getId(), d );
                                     startDownload( d );
-                                } else {
+                                }
+                                else {
                                     ms.getItemTable()
                                             .getModel()
                                             .setValueAt(
@@ -127,7 +129,8 @@ public class DownloadManager implements Runnable {
                                                                             ms,
                                                                             d.getId() ),
                                                             5 );
-                                        } else {
+                                        }
+                                        else {
                                             ms.getItemTable()
                                                     .getModel()
                                                     .setValueAt(
@@ -150,10 +153,12 @@ public class DownloadManager implements Runnable {
                     while ( downloads.hasNext() ) {
                         totalSpeed += downloads.next().getCurrentSpeed();
                     }
-                    ms.updateCurrentDownloadSpeed( GuiOperations.getReadableFromMBSize( totalSpeed ) + "/s" );
+                    ms.updateCurrentDownloadSpeed( GuiOperations
+                            .getReadableFromMBSize( totalSpeed ) + "/s" );
                 }
                 Thread.sleep( 1000 );
-            } catch ( InterruptedException e ) {
+            }
+            catch ( InterruptedException e ) {
                 // ignored
             }
         }
@@ -178,7 +183,8 @@ public class DownloadManager implements Runnable {
                         refreshQueue();
                         lastUpdateTime = System.currentTimeMillis();
                     }
-                } else {
+                }
+                else {
                     ms.setStatus( "Connection Error" );
                     ms.displayAsConnected( false );
                     ms.cleanItemsPanel();
@@ -200,14 +206,15 @@ public class DownloadManager implements Runnable {
         try {
             ms.getItemsPanel().populateTree( connection );
             List<Item> items = ms.getItemsPanel().getItems();
-            if (items != null) {
+            if ( items != null ) {
                 ListIterator<Item> i = items.listIterator();
-                while (i.hasNext()) {
+                while ( i.hasNext() ) {
                     Item currentItem = i.next();
-                    addItemsToQueue(currentItem);
+                    addItemsToQueue( currentItem );
                 }
             }
-        } catch ( Exception e ) {
+        }
+        catch ( Exception e ) {
             System.out.println( e.toString() );
         }
     }
@@ -216,9 +223,10 @@ public class DownloadManager implements Runnable {
         // if (!item.isDir()) {
         if ( isQueueNecessary( item ) ) {
             LeafNode leaf = (LeafNode) ms.getItemsPanel().getItemInTree( item );
-            String path = UserPreferences.PREF_DOWNLOAD_TARGET + leaf.getPathDir().toString();
-            Download d = new Download( UserPreferences.PREF_USERTOKEN, item, leaf,
-                    UserPreferences.PREF_DOWNLOAD_TARGET, connection );
+            String path = UserPreferences.PREF_DOWNLOAD_TARGET
+                    + leaf.getPathDir().toString();
+            Download d = new Download( UserPreferences.PREF_USERTOKEN, item,
+                    leaf, UserPreferences.PREF_DOWNLOAD_TARGET, connection );
             downloadQueue.add( d );
             sessionDownloads.put( d.getId(), d );
             // ((DefaultTableModel) ms.getItemTable().getModel()).addRow(new
@@ -231,14 +239,16 @@ public class DownloadManager implements Runnable {
             if ( childrenItems.size() == 0 && item.isDir()
                     && UserPreferences.PREF_AUTO_CLEAN ) {
                 item.delete();
-            } else {
+            }
+            else {
                 ListIterator<Item> i = childrenItems.listIterator();
                 while ( i.hasNext() ) {
                     Item currentItem = i.next();
                     addItemsToQueue( currentItem );
                 }
             }
-        } catch ( Exception e ) {
+        }
+        catch ( Exception e ) {
             // No children items
         }
     }
@@ -280,7 +290,8 @@ public class DownloadManager implements Runnable {
                                                         "File was deleteed successfully!",
                                                         "Success",
                                                         JOptionPane.INFORMATION_MESSAGE );
-                                    } else {
+                                    }
+                                    else {
                                         JOptionPane.showMessageDialog( null,
                                                 "File could not be deleted!",
                                                 "Failure",
@@ -290,7 +301,8 @@ public class DownloadManager implements Runnable {
                                 }
                                 break;
                             }
-                        } else {
+                        }
+                        else {
                             switch ( UserPreferences.PREF_BEHAVIOR_DOWNLOAD_AGAIN ) {
                             case UserPreferences.OPTION_DOWNLOAD_AGAIN:
                                 queueNecessary = true;
@@ -303,10 +315,12 @@ public class DownloadManager implements Runnable {
                                 break;
                             }
                         }
-                    } else {
+                    }
+                    else {
                         queueNecessary = false;
                     }
-                } else {
+                }
+                else {
                     queueNecessary = false;
                 }
             }
@@ -338,11 +352,15 @@ public class DownloadManager implements Runnable {
                             if ( download.getDownloadedAmount() == 0L ) {
                                 status = "Starting download";
                                 prevSystemTime = System.currentTimeMillis();
-                            } else if ( download.isCanceled() ) {
+                                leaf.focus();
+                            }
+                            else if ( download.isCanceled() ) {
                                 status = "Canceling download";
-                            } else if ( download.isCompleted() ) {
+                            }
+                            else if ( download.isCompleted() ) {
                                 status = "Completing download";
-                            } else if ( download.isPaused() ) {
+                            }
+                            else if ( download.isPaused() ) {
                                 status = GuiOperations
                                         .getReadableSize( currentDownloadedAmount )
                                         + " / "
@@ -351,7 +369,8 @@ public class DownloadManager implements Runnable {
                                                         .getTotalLength() )
                                         + " (Paused)";
                                 download.setCurrentSpeed( 0.0 );
-                            } else {
+                            }
+                            else {
                                 currentSystemTime = System.currentTimeMillis();
                                 currentDownloadedAmount = download
                                         .getDownloadedAmount();
@@ -359,40 +378,46 @@ public class DownloadManager implements Runnable {
                                         / ( ( currentSystemTime - prevSystemTime ) / 1000.0 );
                                 // Update current speed of download
                                 download.setCurrentSpeed( downloadSpeed );
-                                String readableDownloadSpeed = GuiOperations.getReadableFromMBSize( downloadSpeed );
+                                String readableDownloadSpeed = GuiOperations
+                                        .getReadableFromMBSize( downloadSpeed );
                                 prevSystemTime = currentSystemTime;
                                 prevDownloadedAmount = currentDownloadedAmount;
-                                downloadPercent = (float)currentDownloadedAmount / (float)download.getTotalLength();
+                                downloadPercent = (float) currentDownloadedAmount
+                                        / (float) download.getTotalLength();
                                 status = GuiOperations
                                         .getReadableSize( currentDownloadedAmount )
                                         + " / "
                                         + GuiOperations
                                                 .getReadableSize( download
                                                         .getTotalLength() )
-                                        + " ("
-                                        + readableDownloadSpeed
-                                        + "/s)";
+                                        + " (" + readableDownloadSpeed + "/s)";
                             }
                             leaf.setDownPerc( downloadPercent );
                             leaf.setStatus( status );
                         }
                         Thread.sleep( 1000L );
                     }
-                } catch ( InterruptedException e ) {
+                }
+                catch ( InterruptedException e ) {
                     // ignore
-                } finally {
+                }
+                finally {
                     activeDownloads.remove( download.getId() );
-                    LeafNode leaf = GuiOperations.getLeaf( ms, download.getItem() );
+                    LeafNode leaf = GuiOperations.getLeaf( ms,
+                            download.getItem() );
                     if ( leaf != null ) {
                         if ( !download.isFaulty() ) {
                             leaf.setStatus( "Completed" );
+                            leaf.setDownPerc( 1.0f );
                             if ( !connection.refresh() || !download.delete() ) {
                                 leaf.setStatus( "Completed (Couldn't be deleted)" );
                             }
-                        } else {
+                        }
+                        else {
                             if ( !download.isCanceled() ) {
                                 leaf.setStatus( "Error" );
-                            } else {
+                            }
+                            else {
                                 leaf.setStatus( "Canceled/Skipped" );
                             }
                         }
