@@ -5,12 +5,15 @@ import gui.ItemPanel.LeafNode;
 import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.Insets;
+import java.awt.Point;
+import java.awt.Polygon;
 import java.awt.Rectangle;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.image.BufferedImage;
 
 import javax.swing.JComponent;
+import javax.swing.JTree;
 import javax.swing.JViewport;
 import javax.swing.Timer;
 import javax.swing.plaf.basic.BasicTreeUI;
@@ -46,6 +49,8 @@ public class AnimatedTreeUI extends BasicTreeUI {
     private static Color colorLeafBorder = new Color( 179, 223, 190, 150 );
     private static Color colorLeafSel = new Color( 41, 151, 248, 150 );
     private static Color colorLeafSelBorder = new Color( 29, 119, 197, 150 );
+    
+    private static int alpha = 0;
 
     public AnimatedTreeUI() {
         super();
@@ -53,50 +58,69 @@ public class AnimatedTreeUI extends BasicTreeUI {
         timerListener = new TimerListener();
         timer = new Timer( 1000 / 90, timerListener );
     }
+    
+    public static void drawCell( Graphics g, Rectangle bounds, JTree tree, TreePath path, int row ) {
+        boolean isRowSelected = tree.isRowSelected( row );
+        DefaultMutableTreeNode node = (DefaultMutableTreeNode) path.getLastPathComponent();
+        if ( node instanceof LeafNode ) {
+            Color colorTmp = colorLeaf;
+            Color colorBorderTmp = colorLeafBorder;
+            if ( isRowSelected ) {
+                colorTmp = colorLeafSel;
+                colorBorderTmp = colorLeafSelBorder;
+            }
+            Graphics g2 = g.create();
+            g2.setColor( colorTmp );
+            // Download bar
+            g2.fillRect( tree.getVisibleRect().x + 4, bounds.y + 2, Math.round( ( ( tree.getVisibleRect().width - 10 )
+                    * ( (LeafNode) node ).getDownPerc() * 100 ) / 100 ), bounds.height - 6 );
+            g2.setColor( colorBorderTmp );
+            g2.drawRect( tree.getVisibleRect().x + 4, bounds.y + 2, tree.getVisibleRect().width - 10, bounds.height - 6 );
+            drawControls(g, bounds, tree, row, (LeafNode)node);
+            g2.dispose();
+        }
+    }
+    
+    private static void drawControls( Graphics g, Rectangle bounds, JTree tree, int row, LeafNode node ) {
+        if ( node.getDownload() != null ) {
+            boolean isRowSelected = tree.isRowSelected( row );
+            
+            if (isRowSelected) {
+                alpha++;
+                if (alpha >= 255)
+                    alpha = 255;
+                else
+                    tree.repaint();
+            }
+            else {
+                alpha--;
+                if (alpha <= 0)
+                    alpha = 0;
+                else
+                    tree.repaint();
+            }
+            
+            // Play/stop
+            g.setColor( new Color( 250, 50, 50, alpha ) );
+            Point p1 = new Point(tree.getVisibleRect().width - 50, bounds.y + 6 );
+            Point p2 = new Point(tree.getVisibleRect().width - 50, ( bounds.y + bounds.height ) - 8 );
+            Point p3 = new Point(tree.getVisibleRect().width - 40, ( bounds.y + bounds.height / 2 ) -1 );
+    
+            int[] xs = { p1.x, p2.x, p3.x };
+            int[] ys = { p1.y, p2.y, p3.y };
+            Polygon triangle = new Polygon(xs, ys, xs.length);
+    
+            g.fillPolygon(triangle);
+        }
+    }
 
     @Override
-    protected void paintRow( Graphics g, Rectangle clipBounds, Insets insets,
-            Rectangle bounds, TreePath path, int row, boolean isExpanded,
-            boolean hasBeenExpanded, boolean isLeaf ) {
-        boolean isRowSelected = tree.isRowSelected( row );
-        DefaultMutableTreeNode node = (DefaultMutableTreeNode) path
-                .getLastPathComponent();
-        if ( node instanceof LeafNode ) {
+    protected void paintRow( Graphics g, Rectangle clipBounds, Insets insets, Rectangle bounds,
+            TreePath path, int row, boolean isExpanded, boolean hasBeenExpanded, boolean isLeaf ) {
+        
+        drawCell( g, bounds, tree, path, row );
 
-            if ( isRowSelected ) {
-                Graphics g2 = g.create();
-                g2.setColor( colorLeafSel );
-                g2.fillRect(
-                        4,
-                        bounds.y + 2,
-                        Math.round( ( ( tree.getWidth() - 10 )
-                                * ( (LeafNode) node ).getDownPerc() * 100 ) / 100 ),
-                        bounds.height - 6 );
-                g2.setColor( colorLeafSelBorder );
-                g2.drawRect( 4, bounds.y + 2, tree.getWidth() - 10,
-                        bounds.height - 6 );
-                g2.dispose();
-            }
-
-            if ( !isRowSelected ) {
-                Graphics g2 = g.create();
-                g2.setColor( colorLeaf );
-                // Download bar
-                g2.fillRect(
-                        4,
-                        bounds.y + 2,
-                        Math.round( ( ( tree.getWidth() - 10 )
-                                * ( (LeafNode) node ).getDownPerc() * 100 ) / 100 ),
-                        bounds.height - 6 );
-                g2.setColor( colorLeafBorder );
-                g2.drawRect( 4, bounds.y + 2, tree.getWidth() - 10,
-                        bounds.height - 6 );
-                g2.dispose();
-            }
-        }
-
-        super.paintRow( g, clipBounds, insets, bounds, path, row, isExpanded,
-                hasBeenExpanded, isLeaf );
+        super.paintRow( g, clipBounds, insets, bounds, path, row, isExpanded, hasBeenExpanded, isLeaf );
     }
 
     /**
@@ -108,9 +132,12 @@ public class AnimatedTreeUI extends BasicTreeUI {
     protected void toggleExpandState( TreePath path ) {
         if ( animationState != AnimatedTreeUI.AnimationState.NOT_ANIMATING )
             return;
-        DefaultMutableTreeNode node = (DefaultMutableTreeNode) path
-                .getLastPathComponent();
+        DefaultMutableTreeNode node = (DefaultMutableTreeNode) path.getLastPathComponent();
         if ( node instanceof LeafNode )
+            return;
+        if ( node == treeModel.getRoot() )
+            return;
+        if ( node.isLeaf() )
             return;
 
         animationComplete = 1f;
@@ -121,7 +148,8 @@ public class AnimatedTreeUI extends BasicTreeUI {
             subTreeHeight = getSubTreeHeight( path );
             createImages( path );
             animationState = AnimatedTreeUI.AnimationState.EXPANDING;
-        } else {
+        }
+        else {
             subTreeHeight = getSubTreeHeight( path );
             createImages( path );
             super.toggleExpandState( path );
@@ -139,8 +167,7 @@ public class AnimatedTreeUI extends BasicTreeUI {
     private void createImages( TreePath path ) {
         int h = tree.getHeight();
         int w = tree.getWidth();
-        BufferedImage baseImage = new BufferedImage( w, h,
-                BufferedImage.TYPE_INT_RGB );
+        BufferedImage baseImage = new BufferedImage( w, h, BufferedImage.TYPE_INT_RGB );
         Graphics g = baseImage.getGraphics();
         tree.paint( g );
 
@@ -148,15 +175,13 @@ public class AnimatedTreeUI extends BasicTreeUI {
         int row = tree.getRowForPath( path ) + 1;
         offsetY = tree.getRowBounds( row ).y;
 
-        topImage = new BufferedImage( tree.getWidth(), offsetY,
-                BufferedImage.TYPE_INT_RGB );
+        topImage = new BufferedImage( tree.getWidth(), offsetY, BufferedImage.TYPE_INT_RGB );
         Graphics topG = topImage.getGraphics();
         topG.drawImage( baseImage, 0, 0, w, offsetY, // destination
                 0, 0, w, offsetY, // source
                 null );
 
-        bottomImage = new BufferedImage( w, baseImage.getHeight() - offsetY,
-                BufferedImage.TYPE_INT_RGB );
+        bottomImage = new BufferedImage( w, baseImage.getHeight() - offsetY, BufferedImage.TYPE_INT_RGB );
         Graphics bottomG = bottomImage.getGraphics();
         bottomG.drawImage( baseImage, 0, 0, w, baseImage.getHeight() - offsetY, // destination
                 0, offsetY, w, baseImage.getHeight(), // source
@@ -215,15 +240,13 @@ public class AnimatedTreeUI extends BasicTreeUI {
             return 0;
 
         Object firstChild = getModel().getChild( origObj, 0 );
-        Object lastChild = getModel().getChild( origObj,
-                getModel().getChildCount( origObj ) - 1 );
+        Object lastChild = getModel().getChild( origObj, getModel().getChildCount( origObj ) - 1 );
 
         TreePath firstPath = path.pathByAddingChild( firstChild );
         TreePath lastPath = path.pathByAddingChild( lastChild );
 
         int topFirst = getPathBounds( tree, firstPath ).y;
-        int bottomLast = getPathBounds( tree, lastPath ).y
-                + getPathBounds( tree, lastPath ).height;
+        int bottomLast = getPathBounds( tree, lastPath ).y + getPathBounds( tree, lastPath ).height;
 
         int height = bottomLast - topFirst;
         return height;
@@ -236,7 +259,8 @@ public class AnimatedTreeUI extends BasicTreeUI {
             if ( isAnimationComplete() ) {
                 animationState = AnimatedTreeUI.AnimationState.NOT_ANIMATING;
                 timer.stop();
-            } else {
+            }
+            else {
                 updateCompositeImage();
             }
             tree.repaint();
@@ -256,11 +280,10 @@ public class AnimatedTreeUI extends BasicTreeUI {
             if ( c.getParent() instanceof JViewport ) {
                 JViewport vp = (JViewport) c.getParent();
                 Rectangle visibleR = vp.getViewRect();
-                g.setClip( visibleR.x, visibleR.y, visibleR.width,
-                        visibleR.height );
-            } else {
-                g.setClip( 0, 0, compositeImage.getWidth(),
-                        compositeImage.getHeight() );
+                g.setClip( visibleR.x, visibleR.y, visibleR.width, visibleR.height );
+            }
+            else {
+                g.setClip( 0, 0, compositeImage.getWidth(), compositeImage.getHeight() );
             }
         }
         paint( g, c );
@@ -272,7 +295,20 @@ public class AnimatedTreeUI extends BasicTreeUI {
         if ( animationState != AnimatedTreeUI.AnimationState.NOT_ANIMATING ) {
             g.drawImage( compositeImage, 0, 0, null );
             return;
-        } else
-            super.paint( g, c );
+        }
+        else {
+            try {
+                super.paint( g, c );
+            }
+            catch ( Exception e ) {
+                try {
+                    Thread.sleep( 500 );
+                    super.paint( g, c );
+                }
+                catch ( Exception e1 ) {
+                    e1.printStackTrace();
+                }
+            }
+        }
     }
 }

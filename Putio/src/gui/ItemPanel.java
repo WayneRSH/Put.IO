@@ -32,30 +32,35 @@
 package gui;
 
 import javax.swing.BorderFactory;
-import javax.swing.ImageIcon;
+import javax.swing.BoxLayout;
 import javax.swing.JEditorPane;
 import javax.swing.JLabel;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
+import javax.swing.JSeparator;
 import javax.swing.JSplitPane;
 import javax.swing.ToolTipManager;
 
 import javax.swing.JTree;
+import javax.swing.plaf.basic.BasicTreeUI;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.ExpandVetoException;
 import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
+import javax.swing.border.TitledBorder;
 import javax.swing.event.TreeExpansionEvent;
 import javax.swing.event.TreeSelectionEvent;
 import javax.swing.event.TreeSelectionListener;
 import javax.swing.event.TreeWillExpandListener;
 
 import communication.Connection;
+import communication.Download;
 import util.GuiOperations;
+import util.PrefObj;
 import util.UserPreferences;
 
 import api.Item;
@@ -67,21 +72,29 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Set;
+import java.util.prefs.Preferences;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.GridLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.AdjustmentEvent;
+import java.awt.event.AdjustmentListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
+import java.awt.event.MouseMotionAdapter;
+import java.awt.event.MouseMotionListener;
+import java.io.File;
 
 public class ItemPanel extends JPanel implements TreeSelectionListener {
 
     private static final long serialVersionUID = -6845029704959817538L;
-    private JEditorPane infoPane;
     private JTree tree;
+    private JPanel rightPanel;
+    private JEditorPane infoPane;
+    private JTreeDownload downloadTree;
     private DefaultMutableTreeNode waitNode;
     private DefaultMutableTreeNode rootNode;
     private DefaultMutableTreeNode loadNode;
@@ -95,6 +108,8 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
     private Boolean stopOperation = false;
     private MainScreen ms;
     protected JPopupMenu itemMenu;
+    protected JMenuItem autoDownloadEveryMenuItem;
+    protected JMenuItem addToAutomaticDownloadMenuItem;
     protected JMenuItem pauseOrResumeDownloadMenuItem;
     protected JMenuItem cancelDownloadMenuItem;
     protected JMenuItem removeDownloadMenuItem;
@@ -105,20 +120,23 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
     protected JMenuItem sortByNameMenuItem;
     protected JMenuItem sortByDateMenuItem;
     private Boolean sortedByName = true;
-    private ImageIcon openFolderIcon = new ImageIcon( "res/folderOpen.gif" );
-    private ImageIcon closedFolderIcon = new ImageIcon( "res/folderClosed.gif" );
-    private ImageIcon putioIcon = new ImageIcon( "res/putioTree.gif" );
-    // private ImageIcon loadingIcon = new ImageIcon( "res/loading.gif" );
-    private static Color colorSel = new Color( 180, 180, 180 );
+    private StaticIcon openFolderIcon = new StaticIcon( StaticIcon.openFolderIcon );
+    private StaticIcon openFolderSelIcon = new StaticIcon( StaticIcon.openFolderSelIcon );
+    private StaticIcon closedFolderIcon = new StaticIcon( StaticIcon.closedFolderIcon );
+    private StaticIcon closedFolderSelIcon = new StaticIcon( StaticIcon.closedFolderSelIcon );
+    private StaticIcon putioIcon = new StaticIcon( StaticIcon.putioTreeIcon );
+    private Color colorSel = new Color( 180, 180, 180 );
+    private Preferences prefs = null;
+    private List<String> prefsAutoDLFolder;
+    private JSplitPane splitPane;
 
     private class NodeRenderer extends DefaultTreeCellRenderer {
         private static final long serialVersionUID = 3297546151711973066L;
 
         public Component getTreeCellRendererComponent( JTree tree, Object value, boolean sel,
                 boolean expanded, boolean leaf, int row, boolean hasFocus ) {
-
+            
             if ( value instanceof LeafNode ) {
-                // JPanel to show the data
                 JPanel panel = new JPanel();
                 String text = ( ( (LeafNode) value ).getItem() ).toString();
                 panel.add( new JLabel( text ) );
@@ -132,10 +150,16 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
                 // Custom folder icon
                 if ( value instanceof FolderNode ) {
                     if ( expanded ) {
-                        this.setIcon( openFolderIcon );
+                        if ( ( (FolderNode) value ).isAutoDL() )
+                            setIcon( openFolderSelIcon );
+                        else
+                            setIcon( openFolderIcon );
                     }
                     else {
-                        setIcon( closedFolderIcon );
+                        if ( ( (FolderNode) value ).isAutoDL() )
+                            setIcon( closedFolderSelIcon );
+                        else
+                            setIcon( closedFolderIcon );
                     }
                 }
                 // Root icon
@@ -163,21 +187,69 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
     public class FolderNode extends DefaultMutableTreeNode {
         private static final long serialVersionUID = 5522674899094035461L;
 
+        private boolean isAutoDL = false;
+        private Item item;
+
         public FolderNode( Object obj ) {
             super( obj );
+            if ( obj instanceof Item ) {
+                this.item = (Item) obj;
+                if ( prefsAutoDLFolder.contains( item.getId() ) )
+                    this.isAutoDL = true;
+                else
+                    this.isAutoDL = false;
+            }
+        }
+
+        public void setAutoDL( boolean isAutoDL ) {
+            this.isAutoDL = isAutoDL;
+            if ( isAutoDL ) {
+                if ( !prefsAutoDLFolder.contains( this.item.getId() ) ) {
+                    prefsAutoDLFolder.add( this.item.getId() );
+                }
+            }
+            else {
+                if ( prefsAutoDLFolder.contains( this.item.getId() ) ) {
+                    prefsAutoDLFolder.remove( this.item.getId() );
+                }
+            }
+
+            try {
+                PrefObj.putObject( prefs, "AUTODL_FOLDERS", prefsAutoDLFolder );
+            }
+            catch ( Exception e ) {
+                e.printStackTrace();
+            }
+
+            tree.repaint();
+        }
+
+        public boolean isAutoDL() {
+            return isAutoDL;
+        }
+
+        public void setAutoDLVar( boolean isAutoDL ) {
+            this.isAutoDL = isAutoDL;
+            tree.repaint();
         }
     }
 
     public class LeafNode extends DefaultMutableTreeNode {
         private static final long serialVersionUID = 6674627800156445681L;
 
-        private Item item;
+        private Item item = null;
+        private Download download = null;
         private float downloadPercentage = 0.0f;
         private String status = "Unknown";
 
         public LeafNode( Object obj ) {
             super( obj );
-            item = (Item) obj;
+            if ( obj instanceof Item )
+                item = (Item) obj;
+            else if ( obj instanceof Download ) {
+                download = (Download) obj;
+                item = download.getItem();
+            }
         }
 
         public LeafNode( Object obj, float dwn, String st ) {
@@ -189,6 +261,10 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
 
         public Item getItem() {
             return item;
+        }
+        
+        public Download getDownload() {
+            return download;
         }
 
         public float getDownPerc() {
@@ -209,7 +285,8 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
                 downloadPercentage = 1.0f;
             else
                 downloadPercentage = dwnPerc;
-            tree.repaint();
+            if (download == null)
+                tree.repaint();
         }
 
         public TreePathDir getPathDir() {
@@ -219,7 +296,8 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
 
         private void printInfo() {
             TreePath p = tree.getSelectionPath();
-            if ( p != null && (LeafNode) p.getLastPathComponent() == this )
+            if ( p != null && p.getLastPathComponent() instanceof LeafNode
+                    && (LeafNode) p.getLastPathComponent() == this )
                 infoPane.setText( "Name : " + item.getName() + "\nId : " + item.getId() + "\nPid : "
                         + item.getParentId() + "\nCreatedAt : " + item.getCreatedAt() + "\nPath : "
                         + getPathDir().toString() + "\nStatus : " + getStatus() );
@@ -243,10 +321,174 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
 
             for ( int counter = 1, maxCounter = getPathCount(); counter < maxCounter; counter++ ) {
                 if ( counter > 1 )
-                    tempSpot.append( "\\" );
+                    tempSpot.append( File.separator );
                 tempSpot.append( getPathComponent( counter ) );
             }
             return tempSpot.toString();
+        }
+
+        public String getDirs() {
+            Object obj[] = getPath();
+            String dirs = null;
+            for ( int i = 1; i < getPathCount() - 1; i++ ) {
+                if ( i > 1 )
+                    dirs += File.separator;
+                else
+                    dirs = "";
+                dirs += obj[ i ].toString();
+            }
+            return dirs;
+        }
+    }
+    
+    private class JTreeDownload extends JTree {
+        private static final long serialVersionUID = 6328897696354901796L;
+        private ArrayList<Download> downloads;
+        private DefaultTreeModel treeModelDL;
+        
+        public JTreeDownload() {
+            super( new DefaultTreeModel( new FolderNode( "Active downloads" ) ) );
+            treeModelDL = (DefaultTreeModel) getModel();
+            setEditable( false );
+            getSelectionModel().setSelectionMode( TreeSelectionModel.SINGLE_TREE_SELECTION );
+            setRowHeight( 0 );
+            setRootVisible( false );
+            setCellRenderer( new DefaultTreeCellRenderer() {
+                private static final long serialVersionUID = -7105201164017761653L;
+
+                public Component getTreeCellRendererComponent( JTree tree, Object value, boolean sel,
+                        boolean expanded, boolean leaf, int row, boolean hasFocus ) {
+                    
+                    if ( value instanceof LeafNode ) {
+                        JPanel panel = new JPanel();
+                        String text = ( ( (LeafNode) value ).getDownload() ).getItem().getName();
+                        panel.add( new JLabel( text ) );
+                        panel.setBackground( new Color( 0, 0, 0, 0 ) );
+                        panel.setEnabled( tree.isEnabled() );
+                        return panel;
+                    }
+                    else {
+                        super.getTreeCellRendererComponent( tree, value, sel, expanded, leaf, row, hasFocus );
+                        return this;
+                    }
+                }
+            } );
+            MouseMotionListener mml = new MouseMotionAdapter() {
+                @Override
+                public void mouseMoved( MouseEvent e ) {
+                    int selRow = downloadTree.getRowForLocation( 0, e.getY() );
+                    if ( selRow > -1 ) {
+                        TreePath selTmp = downloadTree.getPathForRow( selRow );
+                        downloadTree.setSelectionPath( selTmp );
+                    }
+                    else
+                        downloadTree.setSelectionRow( -1 );
+                    super.mouseMoved( e );
+                }
+            };
+            addMouseMotionListener( mml );
+            MouseListener ml = new MouseAdapter() {
+                @Override
+                public void mouseExited( MouseEvent e ) {
+                    downloadTree.setSelectionRow( -1 );
+                    super.mouseExited( e );
+                }
+                
+                @Override
+                public void mouseReleased( MouseEvent e ) {
+                    TreePath path = downloadTree.getSelectionPath();
+                    if ( path != null ) {
+                        Object obj = path.getLastPathComponent();
+                        if ( obj instanceof LeafNode ) {
+                            DefaultMutableTreeNode node = getItemInTree( ( (LeafNode) obj ).getDownload().getItem() );
+                            if ( node != null && node instanceof LeafNode )
+                                ( (LeafNode) node ).focus();
+                        }
+                    }
+                    super.mouseReleased( e );
+                }
+            };
+            addMouseListener( ml );
+            setUI( new BasicTreeUI() {
+                @Override
+                protected void paintRow( java.awt.Graphics g, java.awt.Rectangle clipBounds,
+                        java.awt.Insets insets, java.awt.Rectangle bounds, TreePath path, int row,
+                        boolean isExpanded, boolean hasBeenExpanded, boolean isLeaf ) {
+                    AnimatedTreeUI.drawCell( g, bounds, downloadTree, path, row );
+                    super.paintRow( g, clipBounds, insets, bounds, path, row, isExpanded, hasBeenExpanded,
+                            isLeaf );
+                };
+            } );
+            downloads = new ArrayList<Download>( 1 );
+        }
+        public void addDL( Download download ) {
+            if ( !downloads.contains( download ) ) {
+                //System.out.println( "add dl " + download.getItem().getName() );
+                downloads.add( download );
+                if (downloads.size() == 1) {
+                    setRootVisible( true );
+                }
+                treeModelDL.insertNodeInto( new LeafNode( download ),
+                        ( (DefaultMutableTreeNode) treeModelDL.getRoot() ),
+                        ( (DefaultMutableTreeNode) treeModelDL.getRoot() ).getChildCount() );
+                if (downloads.size() == 1) {
+                    expandRow( 0 );
+                    setRootVisible( false );
+                }
+            }
+            else {
+                LeafNode node = getNode( download );
+                if ( node != null ) {
+                    node.setDownPerc( (float) download.getDownloadedAmount() / (float) download.getTotalLength() );
+                }
+            }
+            if (downloads.size() >= 1)
+                this.expandRow( 0 );
+        }
+        public void removeDL( Download download ) {
+            if ( downloads.contains( download ) ) {
+                downloads.remove( download );
+                LeafNode node = getNode( download );
+                if ( node != null ) {
+                    treeModelDL.removeNodeFromParent( node );
+                    downloadTree.repaint();
+                }
+            }
+        }
+        public void updateDL() {
+            Iterator<Download> dls = ms.getDownloadManager().getActiveDownloads().values().iterator();
+            while ( dls.hasNext() ) {
+                Download dl = dls.next();
+                addDL( dl );
+            }
+            List<Download> delList = new ArrayList<Download>(1);
+            ListIterator<Download> li = downloads.listIterator();
+            while ( li.hasNext() ) {
+                Download dl = li.next();
+                if ( !dl.isActive() )
+                    delList.add( dl );
+            }
+            li = delList.listIterator();
+            while ( li.hasNext() ) {
+                Download dl = li.next();
+                removeDL( dl );
+            }
+            downloadTree.repaint();
+        }
+        public LeafNode getNode( Download download ) {
+            for ( @SuppressWarnings( "rawtypes" )
+            Enumeration e = ( (DefaultMutableTreeNode) treeModelDL.getRoot() ).children(); e
+                    .hasMoreElements(); ) {
+                LeafNode curNode = (LeafNode) e.nextElement();
+                Object curObj = curNode.getUserObject();
+                if ( curObj instanceof Download ) {
+                    Download dl = (Download) curObj;
+                    if ( dl.getItem().getId().equals( download.getItem().getId() ) ) {
+                        return curNode;
+                    }
+                }
+            }
+            return null;
         }
     }
 
@@ -255,12 +497,45 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
     private static boolean playWithLineStyle = false;
     private static String lineStyle = "Horizontal";
 
-    public ItemPanel( MainScreen mainScreen ) {
+    @SuppressWarnings( "unchecked" )
+    public ItemPanel( MainScreen mainScreen ) throws Exception {
         super( new GridLayout( 1, 0 ) );
 
         ms = mainScreen;
 
         itemMenu = new JPopupMenu();
+        autoDownloadEveryMenuItem = new JMenuItem( "Automatically download everything" );
+        autoDownloadEveryMenuItem.addActionListener( new ActionListener() {
+            @Override
+            public void actionPerformed( ActionEvent e ) {
+                ListIterator<String> prefIterator = prefsAutoDLFolder.listIterator();
+                while ( prefIterator.hasNext() ) {
+                    String id = prefIterator.next();
+                    if ( id == null )
+                        continue;
+                    DefaultMutableTreeNode node = getItemInTree( id );
+                    if ( node != null && node instanceof FolderNode )
+                        ( (FolderNode) node ).setAutoDLVar( false );
+                }
+                try {
+                    prefsAutoDLFolder = new ArrayList<String>( 1 );
+                    PrefObj.putObject( prefs, "AUTODL_FOLDERS", prefsAutoDLFolder );
+                }
+                catch ( Exception e1 ) {
+                    e1.printStackTrace();
+                }
+            }
+        } );
+        addToAutomaticDownloadMenuItem = new JMenuItem( "Add to automatic download" );
+        addToAutomaticDownloadMenuItem.addActionListener( new ActionListener() {
+            @Override
+            public void actionPerformed( ActionEvent e ) {
+                TreePath treePath = tree.getSelectionPath();
+                Object node = treePath.getLastPathComponent();
+                if ( node instanceof FolderNode )
+                    ( (FolderNode) node ).setAutoDL( !( (FolderNode) node ).isAutoDL );
+            }
+        } );
         pauseOrResumeDownloadMenuItem = new JMenuItem( "Pause/resume selected" );
         pauseOrResumeDownloadMenuItem.addActionListener( new ActionListener() {
             @Override
@@ -324,6 +599,9 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
                 GuiOperations.changeSortOrder( ms, "date" );
             }
         } );
+        itemMenu.add( autoDownloadEveryMenuItem );
+        itemMenu.add( addToAutomaticDownloadMenuItem );
+        itemMenu.addSeparator();
         itemMenu.add( pauseOrResumeDownloadMenuItem );
         itemMenu.add( cancelDownloadMenuItem );
         itemMenu.add( removeDownloadMenuItem );
@@ -355,47 +633,19 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
         tree.addTreeSelectionListener( this );
 
         MouseListener ml = new MouseAdapter() {
+            @Override
             public void mouseReleased( MouseEvent e ) {
-                // int selRow = tree.getRowForLocation( e.getX(), e.getY() );
                 int selRow = tree.getClosestRowForLocation( e.getX(), e.getY() );
-                // TreePath selTmp = tree.getPathForLocation( e.getX(), e.getY()
-                // );
                 if ( selRow > 0 ) {
-                    TreePath selTmp = tree.getPathForRow( selRow );
-                    TreePathDir selPath = new TreePathDir( selTmp.getPath() );
                     if ( e.getClickCount() == 1 ) {
-                        System.out.println( "1 clic " + e.getButton() + " : " + selRow + " "
-                                + selPath.toString() );
-                        tree.setSelectionPath( selTmp );
                         pauseOrResumeDownloadMenuItem.setEnabled( true );
                         cancelDownloadMenuItem.setEnabled( true );
                         removeDownloadMenuItem.setEnabled( true );
                     }
                     else if ( e.getClickCount() == 2 ) {
-                        DefaultMutableTreeNode node = (DefaultMutableTreeNode) selTmp.getLastPathComponent();
-                        if ( node instanceof LeafNode ) {
-                            LeafNode leaf = (LeafNode) node;
-                            final Item item = (Item) leaf.getUserObject();
-                            Thread test = new Thread( new Runnable() {
-                                @Override
-                                public void run() {
-                                    try {
-                                        LeafNode leaf = (LeafNode) getItemInTree( item );
-                                        while ( leaf.getDownPerc() < 1.0f ) {
-                                            leaf = (LeafNode) getItemInTree( item );
-                                            ms.getItemsPanel().setDownPerc( item, leaf.getDownPerc() + 0.01f );
-                                            Thread.sleep( 100 );
-                                        }
-                                    }
-                                    catch ( Exception e ) {
-                                        System.out.println( e.toString() );
-                                    }
-                                }
-                            } );
-                            test.start();
-                        }
-                        System.out.println( "2 clic " + e.getButton() + " : " + selRow + " "
-                                + selPath.toString() );
+                        // System.out.println( "2 clic " + e.getButton() + " : "
+                        // + selRow + " "
+                        // + selPath.toString() );
                     }
                 }
                 else {
@@ -403,6 +653,25 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
                     cancelDownloadMenuItem.setEnabled( false );
                     removeDownloadMenuItem.setEnabled( false );
                 }
+
+                TreePath selTmp = tree.getPathForRow( selRow );
+                tree.setSelectionPath( selTmp );
+                Object obj = selTmp.getLastPathComponent();
+                if ( obj instanceof FolderNode ) {
+                    if ( ( (FolderNode) obj ).isAutoDL() )
+                        addToAutomaticDownloadMenuItem.setText( "Remove from automatic download" );
+                    else
+                        addToAutomaticDownloadMenuItem.setText( "Add to automatic download" );
+                }
+                addToAutomaticDownloadMenuItem.setVisible( obj instanceof FolderNode );
+                // Hide first separator if necessary
+                for ( int i = 0; i < itemMenu.getComponentCount() - 1; i++ ) {
+                    if ( itemMenu.getComponent( i ) instanceof JSeparator ) {
+                        ( (JSeparator) itemMenu.getComponent( i ) ).setVisible( obj instanceof FolderNode );
+                        break;
+                    }
+                }
+
                 if ( e.getButton() == MouseEvent.BUTTON3 )
                     itemMenu.show( e.getComponent(), e.getX(), e.getY() );
             }
@@ -431,25 +700,52 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
 
         // Create the scroll pane and add the tree to it.
         JScrollPane treeView = new JScrollPane( tree );
+        treeView.getHorizontalScrollBar().addAdjustmentListener( new AdjustmentListener() {
+            @Override
+            public void adjustmentValueChanged( AdjustmentEvent e ) {
+                tree.repaint();
+            }
+        } );
 
-        // Create the HTML viewing pane.
+        rightPanel = new JPanel();
+        rightPanel.setLayout(new BoxLayout(rightPanel, BoxLayout.PAGE_AXIS));
+        
+        // Create the HTML viewing pane
         infoPane = new JEditorPane();
         infoPane.setEditable( false );
         JScrollPane infoView = new JScrollPane( infoPane );
+        infoView.setPreferredSize( new Dimension( 0, 0 ) );
+        
+        downloadTree = new JTreeDownload();
+        JScrollPane downView = new JScrollPane( downloadTree );
+        downView.setPreferredSize( new Dimension( 0, 0 ) );
+        downView.setBorder( new TitledBorder( "Active downloads" ) );
+        
+        rightPanel.add( infoView );
+        rightPanel.add( downView );
 
-        // Add the scroll panes to a split pane.
-        JSplitPane splitPane = new JSplitPane( JSplitPane.HORIZONTAL_SPLIT );
+        // Add the scroll panes to a split pane
+        splitPane = new JSplitPane( JSplitPane.HORIZONTAL_SPLIT );
         splitPane.setLeftComponent( treeView );
-        splitPane.setRightComponent( infoView );
+        splitPane.setRightComponent( rightPanel );
 
-        Dimension minimumSize = new Dimension( 100, 50 );
-        infoView.setMinimumSize( minimumSize );
-        treeView.setMinimumSize( minimumSize );
-        splitPane.setDividerLocation( Math.round( ms.getWidth() / 2 ) );
+        splitPane.setDividerLocation( UserPreferences.PREFS.getInt( "FRAME_DIV_POS",
+                Math.round( ms.getWidth() / 2 ) ) );
         splitPane.setPreferredSize( new Dimension( 500, 300 ) );
 
-        // Add the split pane to this panel.
+        // Add the split pane to this panel
         add( splitPane );
+
+        if ( prefs == null && UserPreferences.PREFS != null )
+            prefs = UserPreferences.PREFS;
+
+        try {
+            prefsAutoDLFolder = (List<String>) PrefObj.getObject( prefs, "AUTODL_FOLDERS" );
+        }
+        catch ( Exception e ) {
+            prefsAutoDLFolder = new ArrayList<String>( 1 );
+            PrefObj.putObject( prefs, "AUTODL_FOLDERS", prefsAutoDLFolder );
+        }
     }
 
     /** Required by TreeSelectionListener interface. */
@@ -500,7 +796,6 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
         tree.setModel( waitTreeModel );
         tree.setEditable( false );
         treeLoaded = false;
-        rootNode = new DefaultMutableTreeNode( rootNodeTxt );
         infoPane.setText( "" );
     }
 
@@ -525,6 +820,8 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
             // shared items...
             if ( UserPreferences.PREF_LOAD_SHARED )
                 fillSharedTree();
+            else
+                removeSharedTree();
 
             treeLoaded = true;
         }
@@ -681,6 +978,21 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
         }
     }
 
+    private void removeSharedTree() {
+        for ( @SuppressWarnings( "rawtypes" )
+        Enumeration e = ( (DefaultMutableTreeNode) treeModel.getRoot() ).children(); e.hasMoreElements(); ) {
+            DefaultMutableTreeNode curNode = (DefaultMutableTreeNode) e.nextElement();
+            Object nodeInfo = curNode.getUserObject();
+            if ( nodeInfo instanceof Item ) {
+                Item itTmp = (Item) nodeInfo;
+                if ( itTmp.getName().contains( "shared" ) ) {
+                    treeModel.removeNodeFromParent( curNode );
+                    break;
+                }
+            }
+        }
+    }
+
     private void addChildren( DefaultMutableTreeNode node ) {
         if ( stopOperation )
             return;
@@ -771,6 +1083,22 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
             if ( nodeInfo instanceof Item ) {
                 Item itTmp = (Item) nodeInfo;
                 if ( itTmp.getId().equals( item.getId() ) ) {
+                    return curNode;
+                }
+            }
+        }
+        return null;
+    }
+
+    public DefaultMutableTreeNode getItemInTree( String id ) {
+        for ( @SuppressWarnings( "rawtypes" )
+        Enumeration e = ( (DefaultMutableTreeNode) treeModel.getRoot() ).breadthFirstEnumeration(); e
+                .hasMoreElements(); ) {
+            DefaultMutableTreeNode curNode = (DefaultMutableTreeNode) e.nextElement();
+            Object nodeInfo = curNode.getUserObject();
+            if ( nodeInfo instanceof Item ) {
+                Item itTmp = (Item) nodeInfo;
+                if ( itTmp.getId().equals( id ) ) {
                     return curNode;
                 }
             }
@@ -907,11 +1235,22 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
     private void expandSingleNode( DefaultMutableTreeNode node ) {
         if ( node == null )
             return;
-
-        if ( node.isLeaf() && node != (DefaultMutableTreeNode) treeModel.getRoot() )
+        
+        if ( node.isLeaf() && node != (DefaultMutableTreeNode) treeModel.getRoot() ) {
+            TreePath pathNode = new TreePath( node.getPath() );
             node = (DefaultMutableTreeNode) node.getParent();
+            TreePath path = new TreePath( node.getPath() );
+            tree.expandPath( path );
+            tree.scrollPathToVisible( path );
+            tree.setSelectionPath( pathNode );
+        }
+    }
 
-        tree.expandPath( new TreePath( node.getPath() ) );
-        tree.scrollPathToVisible( new TreePath( node.getPath() ) );
+    public int getDivPos() {
+        return splitPane.getDividerLocation();
+    }
+
+    public void updateDownload() {
+        downloadTree.updateDL();
     }
 }

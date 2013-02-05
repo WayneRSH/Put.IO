@@ -26,6 +26,7 @@ import java.net.URL;
 import java.net.URLConnection;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.concurrent.TimeoutException;
 
 import flexjson.JSONDeserializer;
 import flexjson.JSONSerializer;
@@ -141,7 +142,7 @@ public class Requestor
             rd.close();
         }
         catch(SocketTimeoutException ex) {
-            throw new Exception( "Read Timed out" );
+            throw new TimeoutException();
         }
 
         json = sb.toString();

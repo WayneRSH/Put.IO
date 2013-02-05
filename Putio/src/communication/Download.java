@@ -3,12 +3,9 @@ package communication;
 import gui.ItemPanel.LeafNode;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.net.MalformedURLException;
+import java.util.ArrayList;
 
 import javax.swing.JOptionPane;
 
@@ -24,7 +21,7 @@ public class Download implements Runnable {
 
     /** Corresponding put.io item */
     private Item item;
-    
+
     /** Corresponding leaf in tree */
     private LeafNode leaf;
 
@@ -45,6 +42,8 @@ public class Download implements Runnable {
 
     /** Current download speed in MB */
     private double currentSpeed;
+    private ArrayList<Double> avgSpeedList = new ArrayList<Double>( 1 );
+    private double currentAvgSpeed;
 
     /** Download id */
     private int id;
@@ -59,23 +58,18 @@ public class Download implements Runnable {
     /** Indicates if download is paused */
     private boolean isPaused = false;
 
-    /** Download parts */
-    private DownloadPart[] parts;
-    /** Download part threads */
-    private Thread[] partThreads;
-
     /** Download resume */
     private DownloadResumer downResume;
     /** Download resume thread */
-    private Thread downResThread; 
-    
+    private Thread downResThread;
+
     /**
      * @return the item
      */
     public Item getItem() {
         return item;
     }
-    
+
     /**
      * @return the leaf
      */
@@ -191,8 +185,26 @@ public class Download implements Runnable {
         return currentSpeed;
     }
 
-    public void setCurrentSpeed( double currentSpeed ) {
+    public synchronized double getCurrentAvgSpeed() {
+        return this.currentAvgSpeed;
+    }
+
+    public synchronized void setCurrentSpeed( double currentSpeed ) {
         this.currentSpeed = currentSpeed;
+        // Damn you resume
+        if ( this.avgSpeedList.size() == 39
+                || ( this.avgSpeedList.size() == 2 && ( this.avgSpeedList.get( 0 ) - this.avgSpeedList
+                        .get( 1 ) ) > 100 ) )
+            this.avgSpeedList.remove( 0 );
+        this.avgSpeedList.add( currentSpeed );
+        double avgSpeed = 0D;
+        for ( int i = 0; i < this.avgSpeedList.size(); i++ ) {
+            // Weighted average (the older the lesser)
+            avgSpeed += this.avgSpeedList.get( i )
+                    * ( (double) ( i + 1 ) / ( (double) ( this.avgSpeedList.size() + 1 ) / 2 ) );
+        }
+        avgSpeed /= this.avgSpeedList.size();
+        this.currentAvgSpeed = avgSpeed;
     }
 
     /**
@@ -244,15 +256,11 @@ public class Download implements Runnable {
         return id;
     }
 
-    /**
-     * @return Download parts
-     */
-    public DownloadPart[] getParts() {
-        return parts;
+    public boolean isResuming() {
+        return this.downResume.isResuming();
     }
 
-    public Download( String token, Item item, LeafNode leaf, String path,
-            Connection connection ) {
+    public Download( String token, Item item, LeafNode leaf, String path, Connection connection ) {
         this.token = token;
         this.item = item;
         this.leaf = leaf;
@@ -277,28 +285,33 @@ public class Download implements Runnable {
     private void startDownload() throws MalformedURLException, IOException {
         try {
             isActive = true;
-            File f = new File( path + "\\" + filename );
+            // Creating directories
+            String dirs = leaf.getPathDir().getDirs();
+            if ( dirs != null ) {
+                File fDirs = new File( path + File.separator + dirs );
+                if ( !fDirs.exists() ) {
+                    if ( !fDirs.mkdirs() )
+                        throw new Exception( "Unable to create dirs " + dirs );
+                }
+                path += File.separator + dirs;
+            }
+
+            File f = new File( path + File.separator + filename );
             if ( f.exists() && f.isFile() ) {
                 if ( !UserPreferences.PREF_DONT_ASK_OVERWRITE ) {
-                    switch ( JOptionPane
-                            .showConfirmDialog(
-                                    null,
-                                    "This file already exists on disc. Would you like to overwrite it? ("
-                                            + GuiOperations.getReadableSize( f
-                                                    .length() )
-                                            + " on disc / "
-                                            + GuiOperations
-                                                    .getReadableSize( totalLength )
-                                            + " on server)", "Overwrite ("
-                                            + filename + ")",
-                                    JOptionPane.YES_NO_OPTION,
-                                    JOptionPane.QUESTION_MESSAGE ) ) {
+                    switch ( JOptionPane.showConfirmDialog( null,
+                            "This file already exists on disc. Would you like to overwrite it? ("
+                                    + GuiOperations.getReadableSize( f.length() ) + " on disc / "
+                                    + GuiOperations.getReadableSize( totalLength ) + " on server)",
+                            "Overwrite (" + filename + ")", JOptionPane.YES_NO_OPTION,
+                            JOptionPane.QUESTION_MESSAGE ) ) {
                     case JOptionPane.NO_OPTION:
                         cancel();
                         leaf.setDownPerc( 1.0f );
                         throw new Exception( "File already exists!" );
                     }
-                } else {
+                }
+                else {
                     switch ( UserPreferences.PREF_BEHAVIOR_OVERWRITE ) {
                     case UserPreferences.OPTION_OVERWRITE:
                         break;
@@ -315,8 +328,7 @@ public class Download implements Runnable {
                         if ( f.length() == totalLength ) {
                             cancel();
                             leaf.setDownPerc( 1.0f );
-                            throw new Exception(
-                                    "File already exists with same size!" );
+                            throw new Exception( "File already exists with same size!" );
                         }
                         break;
                     case UserPreferences.OPTION_SKIP_SAME_SIZE_DELETE:
@@ -324,90 +336,34 @@ public class Download implements Runnable {
                             cancel();
                             connection.refresh();
                             delete();
-                            throw new Exception(
-                                    "File already exists with same size!" );
+                            throw new Exception( "File already exists with same size!" );
                         }
                         break;
                     }
                 }
             }
-            
-            downResume = new DownloadResumer( this, totalLength );
+
+            downResume = new DownloadResumer( this, totalLength, UserPreferences.PREF_DOWNLOAD_PART_COUNT );
             downResThread = new Thread( downResume );
             downResThread.start();
-            
+
             while ( loopResume() && !isFaulty ) {
                 Thread.sleep( 1000 );
             }
-            isCompleted = true;
+            isCompleted = downResume.isCompleted();
 
-//            partThreads = new Thread[ UserPreferences.PREF_DOWNLOAD_PART_COUNT ];
-//            parts = new DownloadPart[ UserPreferences.PREF_DOWNLOAD_PART_COUNT ];
-//            long regularSize = Math.round( (double) totalLength
-//                    / UserPreferences.PREF_DOWNLOAD_PART_COUNT );
-//            long sizeOfLastPart = ( totalLength - regularSize
-//                    * ( UserPreferences.PREF_DOWNLOAD_PART_COUNT - 1 ) );
-//            for ( int i = 0; i < partThreads.length; i++ ) {
-//                if ( i != partThreads.length - 1 ) {
-//                    parts[ i ] = new DownloadPart( i + 1, this,
-//                            ( i * regularSize ), regularSize );
-//                } else {
-//                    parts[ i ] = new DownloadPart( i + 1, this,
-//                            ( i * regularSize ), sizeOfLastPart );
-//                }
-//                partThreads[ i ] = new Thread( parts[ i ] );
-//                partThreads[ i ].start();
-//            }
-//            while ( loopOverAllParts() && !isFaulty ) {
-//                // Wait until all parts are finished
-//                Thread.sleep( 1000 );
-//            }
-//            isCompleted = true;
-//            // Merge parts
-//            FileOutputStream fout = new FileOutputStream( f.getPath() );
-//            File partFile;
-//            FileInputStream finp;
-//            int length;
-//            byte[] buff = new byte[ 8000 ];
-//            for ( int i = 0; i < parts.length; i++ ) {
-//                partFile = new File( parts[ i ].getPath() );
-//                if ( !isFaulty ) {
-//                    finp = new FileInputStream( partFile );
-//                    while ( ( length = finp.read( buff ) ) > 0 ) {
-//                        fout.write( buff, 0, length );
-//                    }
-//                    finp.close();
-//                }
-//                partFile.delete();
-//            }
-//            fout.close();
-            
             // Delete file in case of error
             if ( isFaulty )
                 f.delete();
             isActive = false;
-        } catch ( Exception e ) {
+        }
+        catch ( Exception e ) {
             isFaulty = true;
-            StringWriter sw = new StringWriter();
-            e.printStackTrace( new PrintWriter( sw ) );
-            System.out.println( sw.toString() );
+            isActive = false;
+            //System.out.println( e.toString() );
         }
     }
 
-    /**
-     * Loops over all download parts and runs routine tasks
-     * 
-     * @return FALSE if none of the parts is running
-     */
-    private boolean loopOverAllParts() {
-        boolean retVal = false;
-        for ( int i = 0; i < parts.length; i++ ) {
-            retVal |= partThreads[ i ].isAlive();
-            isFaulty |= parts[ i ].isFaulty();
-        }
-        return retVal;
-    }
-    
     private boolean loopResume() {
         boolean retVal = false;
         retVal |= downResThread.isAlive();
@@ -419,7 +375,8 @@ public class Download implements Runnable {
         try {
             item.delete();
             return true;
-        } catch ( Exception e ) {
+        }
+        catch ( Exception e ) {
             return false;
         }
     }
@@ -440,7 +397,18 @@ public class Download implements Runnable {
     public void run() {
         try {
             startDownload();
-        } catch ( Exception e ) {
         }
+        catch ( Exception e ) {
+        }
+    }
+    
+    @Override
+    public boolean equals( Object object ) {
+        boolean same = false;
+        if ( object != null && object instanceof Download ) {
+            same = this.item.getId().equals( ( (Download) object ).getItem().getId() );
+        }
+
+        return same;
     }
 }

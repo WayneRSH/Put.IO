@@ -66,15 +66,15 @@ public class GuiOperations {
     }
 
     public static int getRowNumber(MainScreen ms, int downloadId) {
-        for (int i = 0; i < ms.getItemTable().getModel().getRowCount(); i++) {
-            if (((Integer) ms.getItemTable().getModel().getValueAt(i, 0)) == downloadId)
-                return i;
-        }
+//        for (int i = 0; i < ms.getItemTable().getModel().getRowCount(); i++) {
+//            if (((Integer) ms.getItemTable().getModel().getValueAt(i, 0)) == downloadId)
+//                return i;
+//        }
         return -1;
     }
     
     public static LeafNode getLeaf(MainScreen ms, Item item) {
-        DefaultMutableTreeNode node = ms.getItemsPanel().getItemInTree( item );
+        DefaultMutableTreeNode node = ms.getItemPanel().getItemInTree( item );
         if ( node != null && node instanceof LeafNode )
             return ( LeafNode ) node;
         return null;
@@ -178,12 +178,12 @@ public class GuiOperations {
     
     public static void changeSortOrder(MainScreen ms, String sortBy) {
         if (sortBy.equals("name")) {
-            if (!ms.getItemsPanel().isSortedByName())
-                ms.getItemsPanel().sortByName();
+            if (!ms.getItemPanel().isSortedByName())
+                ms.getItemPanel().sortByName();
         }
         else {
-            if (!ms.getItemsPanel().isSortedByDate())
-                ms.getItemsPanel().sortByDate();
+            if (!ms.getItemPanel().isSortedByDate())
+                ms.getItemPanel().sortByDate();
         }
     }
 

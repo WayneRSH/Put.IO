@@ -5,7 +5,6 @@ import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.awt.event.KeyEvent;
 
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
@@ -223,7 +222,6 @@ public class PreferencesScreen extends JFrame {
         connectionTabPanel.add(serverSettingsPanel);
         
         tabbedPanel.addTab("Connection", null, connectionTabPanel);
-        tabbedPanel.setMnemonicAt(0, KeyEvent.VK_1);
 
         // Startup settings
         startupSettingsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
@@ -234,7 +232,6 @@ public class PreferencesScreen extends JFrame {
         startupSettingsPanel.add(startInTrayCheck);
         
         tabbedPanel.addTab("Startup", null, startupSettingsPanel);
-        tabbedPanel.setMnemonicAt(1, KeyEvent.VK_2);
 
         // Download Settings
         downloadSettingsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
@@ -297,7 +294,6 @@ public class PreferencesScreen extends JFrame {
         downloadSettingsPanel.add(fileSizeDeletePanel);
         
         tabbedPanel.addTab("Download", null, downloadSettingsPanel);
-        tabbedPanel.setMnemonicAt(2, KeyEvent.VK_3);
 
         // Conflict settings
         conflictSettingsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
@@ -334,7 +330,6 @@ public class PreferencesScreen extends JFrame {
         conflictSettingsPanel.add(overwriteComboPanel);
         
         tabbedPanel.addTab("Conflict", null, conflictSettingsPanel);
-        tabbedPanel.setMnemonicAt(3, KeyEvent.VK_4);
 
         // Buttons
         buttonsPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));

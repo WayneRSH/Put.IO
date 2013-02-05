@@ -194,7 +194,7 @@ public class Item implements ObjectFactory
             Map<String, ?> map = (Map<String, ?>) value;
             Item i = new Item();
             i.isShared = boolVal( map.get( "is_shared" ) );
-            i.name = stringVal( map.get( "name" ) );
+            i.name = stringVal( map.get( "name" ) ).trim();
             i.contentType = stringVal( map.get( "content_type" ) );
             if ( i.contentType.equals( "application/x-directory" ) )
                 i.dir = true;
@@ -219,7 +219,7 @@ public class Item implements ObjectFactory
     @Override
     public String toString()
     {
-        return name + (isShared?" SHARED":"");
+        return name;
     }
 
     public String getName()

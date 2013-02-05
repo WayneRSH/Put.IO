@@ -2,16 +2,9 @@ package communication;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.nio.ByteBuffer;
-import java.nio.LongBuffer;
 
 public class DownloadResumer implements Runnable {
     /** Main download which this part belongs to */
@@ -19,23 +12,18 @@ public class DownloadResumer implements Runnable {
 
     /** Status members */
     private long size;
-    private long offset;
     private long downloadedAmount;
+    private boolean resuming;
 
     /** Download path of this part */
     private String path;
-    /** Resume info of this download */
-    private String resumePath;
-    /** File descriptor for the download */
-    private File fDown;
-    /** File descriptor for the resume info file */
-    private File fResume;
-    /** File output stream of this part */
-    private FileOutputStream fileOS = null;
     /** Indicates if this download part faulty */
     private boolean isFaulty = false;
-    /** Indicates if we must resume */
-    private boolean isResuming = false;
+
+    private Thread[] partThreads;
+    private DownloadPart[] parts;
+    private int numberOfParts;
+    private boolean isCompleted = false;
 
     /**
      * @return the size
@@ -52,13 +40,6 @@ public class DownloadResumer implements Runnable {
     }
 
     /**
-     * @return the resume info path
-     */
-    public String getResumePath() {
-        return resumePath;
-    }
-
-    /**
      * @return the rootDownload
      */
     public Download getRootDownload() {
@@ -72,11 +53,24 @@ public class DownloadResumer implements Runnable {
         return isFaulty;
     }
 
+    public boolean isCompleted() {
+        return isCompleted;
+    }
+
     /**
      * @return the downloadedAmount
      */
     public long getDownloadedAmount() {
         return downloadedAmount;
+    }
+
+    public void addDownloadedAmount( long partDownloadedAmount ) {
+        this.downloadedAmount += partDownloadedAmount;
+        this.rootDownload.setDownloadedAmount( this.downloadedAmount );
+    }
+
+    public boolean isResuming() {
+        return this.resuming;
     }
 
     /**
@@ -85,140 +79,94 @@ public class DownloadResumer implements Runnable {
      * @param size
      *            Part size
      */
-    public DownloadResumer( Download download, long size ) {
+    public DownloadResumer( Download download, long size, int defaultParts ) throws Exception {
         this.rootDownload = download;
         this.size = size;
-        this.offset = 0;
-        this.path = download.getPath() + "\\" + download.getFileName();
-        this.resumePath = this.path + ".piores";
+        this.path = download.getPath() + File.separator + download.getFileName();
+        this.downloadedAmount = 0L;
+        this.isCompleted = false;
+
+        // Checking existing parts
+        int i = 0;
+        while ( true ) {
+            File fDown = new File( this.path + ".pio" + i );
+            if ( !fDown.exists() )
+                break;
+            else
+                this.resuming = true;
+            i++;
+        }
+
+        // Parts found, we use the initial number of parts for resuming the
+        // download
+        if ( i > 0 )
+            this.numberOfParts = i;
+        else
+            this.numberOfParts = defaultParts;
     }
 
     @Override
     public void run() {
         try {
-            // Check if we must resume
-            fResume = new File( this.resumePath );
-            if ( fResume.exists() && fResume.isFile() ) {
-                byte[] buff = new byte[ 8 ];
-                FileInputStream fis = new FileInputStream( fResume );
-                int n = 0;
-                if ( ( n = fis.read( buff ) ) > 0 ) {
-                    // buff should contain the offset
-                    ByteBuffer bb = ByteBuffer.wrap( buff );
-                    this.offset = bb.getLong();
-                }
-                fis.close();
-                downloadedAmount = this.offset;
-                rootDownload.setDownloadedAmount( downloadedAmount );
-                isResuming = true;
-            }
-
-            fDown = new File( path + ".piodm" );
-
-            // If the offset is greater or equal than the size, there must have
-            // been an error while deleting or renaming the files
-            if ( this.offset >= this.size ) {
-                if ( fResume.exists() ) {
-                    if ( !fResume.delete() )
-                        throw new IllegalStateException(
-                                "Unable to delete resume file" );
-                }
-                if ( fDown.exists() ) {
-                    if ( !fDown.renameTo( new File( this.path ) ) )
-                        throw new IllegalStateException(
-                                "Unable to rename completed file" );
-                }
-            }
-            else {
-
-                fileOS = new FileOutputStream( fDown, isResuming );
-                FileOutputStream fiOff = null;
-                byte[] byteOffset = new byte[ 8 ];
-
-                URL url = new URL( rootDownload.getUrl().replace( " ", "%20" ) );
-                HttpURLConnection conn = (HttpURLConnection) url
-                        .openConnection();
-                // Specify what part of file to download
-                if ( offset > 0 )
-                    conn.setRequestProperty( "Range", "bytes=" + offset + "-" );
-                else {
-                    // For the offset
-                    fiOff = new FileOutputStream( fResume );
-                    byteOffset = ByteBuffer.allocate( 8 ).putLong( 0 )
-                            .array();
-                    fiOff.write( byteOffset, 0, 8 );
-                    fiOff.flush();
-                    fiOff.close();
-                }
-
-                conn.connect();
-                int responseCode = conn.getResponseCode();
-                if ( responseCode == HttpURLConnection.HTTP_OK
-                        || responseCode == HttpURLConnection.HTTP_PARTIAL ) {
-                    byte[] tmp_buffer = new byte[ 4096 ];
-                    InputStream is = conn.getInputStream();
-                    int n;
-                    while ( ( n = is.read( tmp_buffer ) ) > 0
-                            && downloadedAmount < size ) {
-                        if ( !rootDownload.getConnection().isConnected
-                                || rootDownload.isCanceled() ) {
-                            isFaulty = true;
-                            break;
-                        }
-                        if ( downloadedAmount + n > size ) {
-                            n = (int) ( size - downloadedAmount );
-                        }
-                        fileOS.write( tmp_buffer, 0, n );
-                        fileOS.flush();
-                        downloadedAmount += n;
-                        rootDownload.setDownloadedAmount( rootDownload
-                                .getDownloadedAmount() + n );
-                        fiOff = new FileOutputStream( fResume );
-                        byteOffset = ByteBuffer.allocate( 8 )
-                                .putLong( rootDownload.getDownloadedAmount() )
-                                .array();
-                        fiOff.write( byteOffset, 0, 8 );
-                        fiOff.flush();
-                        fiOff.close();
-                        // Wait if paused
-                        while ( rootDownload.isPaused()
-                                && !rootDownload.isCanceled() )
-                            Thread.sleep( 1000 );
-                    }
-                    fileOS.close();
-                    if ( fResume.exists() && fResume.isFile() ) {
-                        if ( !fResume.delete() )
-                            throw new IllegalStateException(
-                                    "Unable to delete resume file" );
-                    }
-                    if ( fDown.exists() && fDown.isFile() ) {
-                        if ( !fDown.renameTo( new File( this.path ) ) )
-                            throw new IllegalStateException(
-                                    "Unable to rename completed file" );
-                    }
-
+            int i;
+            this.partThreads = new Thread[ this.numberOfParts ];
+            this.parts = new DownloadPart[ this.numberOfParts ];
+            long regularSize = Math.round( (double) this.size / this.numberOfParts );
+            long sizeOfLastPart = ( this.size - regularSize * ( this.numberOfParts - 1 ) );
+            for ( i = 0; i < this.partThreads.length; i++ ) {
+                if ( i != this.partThreads.length - 1 ) {
+                    this.parts[ i ] = new DownloadPart( this, new File( path + ".pio" + i ),
+                            ( i * regularSize ), regularSize );
                 }
                 else {
-                    throw new IllegalStateException( "HTTP response: "
-                            + responseCode );
+                    this.parts[ i ] = new DownloadPart( this, new File( path + ".pio" + i ),
+                            ( i * regularSize ), sizeOfLastPart );
                 }
+                this.partThreads[ i ] = new Thread( this.parts[ i ] );
+                this.partThreads[ i ].start();
+            }
+            while ( loopOverAllParts() && !this.isFaulty ) {
+                Thread.sleep( 1000 );
+            }
+
+            // Merge parts
+            if ( !isFaulty && isCompleted ) {
+                FileOutputStream fout = new FileOutputStream( this.path );
+                File partFile;
+                FileInputStream finp;
+                int length;
+                byte[] buff = new byte[ 8000 ];
+                for ( i = 0; i < this.parts.length; i++ ) {
+                    partFile = new File( this.path + ".pio" + i );
+                    if ( !this.isFaulty ) {
+                        finp = new FileInputStream( partFile );
+                        while ( ( length = finp.read( buff ) ) > 0 ) {
+                            fout.write( buff, 0, length );
+                        }
+                        finp.close();
+                    }
+                    partFile.delete();
+                }
+                fout.close();
             }
         }
         catch ( Exception e ) {
-            isFaulty = true;
+            this.isFaulty = true;
             StringWriter sw = new StringWriter();
             e.printStackTrace( new PrintWriter( sw ) );
             System.out.println( sw.toString() );
         }
-        finally {
-            if ( fileOS != null ) {
-                try {
-                    fileOS.close();
-                }
-                catch ( IOException e ) {
-                    // Ignore
-                }
-            }
+    }
+
+    private boolean loopOverAllParts() {
+        boolean retVal = false;
+        boolean complete = true;
+        for ( int i = 0; i < this.parts.length; i++ ) {
+            retVal |= this.partThreads[ i ].isAlive();
+            this.isFaulty |= this.parts[ i ].isFaulty();
+            complete &= this.parts[ i ].isCompleted();
         }
+        this.isCompleted = complete;
+        return retVal;
     }
 }

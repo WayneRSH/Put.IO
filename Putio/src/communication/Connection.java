@@ -1,7 +1,9 @@
 package communication;
 
+import java.io.IOException;
 import java.util.List;
 
+import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 
 import api.Item;
@@ -31,27 +33,30 @@ public class Connection {
 
     /**
      * 
-     * @param proxyActive the mProxyActive to set
-     * @throws Exception if proxy settings are not ok
+     * @param proxyActive
+     *            the mProxyActive to set
+     * @throws Exception
+     *             if proxy settings are not ok
      */
-    public void setProxyActive(boolean proxyActive) throws Exception {
+    public void setProxyActive( boolean proxyActive ) throws Exception {
         this.proxyActive = proxyActive;
-        if (proxyActive) {
-            if (proxyAddress == null || proxyPort == null)
-                throw new Exception("Proxy settings are not ok!");
-            System.setProperty("http.proxySet", "true");
-            System.setProperty("http.proxyHost", proxyAddress);
-            System.setProperty("http.proxyPort", proxyPort);
-            System.setProperty("https.proxySet", "true");
-            System.setProperty("https.proxyHost", proxyAddress);
-            System.setProperty("https.proxyPort", proxyPort);
-        } else {
-            System.setProperty("http.proxySet", "false");
-            System.setProperty("http.proxyHost", "");
-            System.setProperty("http.proxyPort", "");
-            System.setProperty("https.proxySet", "false");
-            System.setProperty("https.proxyHost", "");
-            System.setProperty("https.proxyPort", "");
+        if ( proxyActive ) {
+            if ( proxyAddress == null || proxyPort == null )
+                throw new Exception( "Proxy settings are not ok!" );
+            System.setProperty( "http.proxySet", "true" );
+            System.setProperty( "http.proxyHost", proxyAddress );
+            System.setProperty( "http.proxyPort", proxyPort );
+            System.setProperty( "https.proxySet", "true" );
+            System.setProperty( "https.proxyHost", proxyAddress );
+            System.setProperty( "https.proxyPort", proxyPort );
+        }
+        else {
+            System.setProperty( "http.proxySet", "false" );
+            System.setProperty( "http.proxyHost", "" );
+            System.setProperty( "http.proxyPort", "" );
+            System.setProperty( "https.proxySet", "false" );
+            System.setProperty( "https.proxyHost", "" );
+            System.setProperty( "https.proxyPort", "" );
         }
     }
 
@@ -63,9 +68,10 @@ public class Connection {
     }
 
     /**
-     * @param mProxyAddress the mProxyAddress to set
+     * @param mProxyAddress
+     *            the mProxyAddress to set
      */
-    public void setProxyAddress(String mProxyAddress) {
+    public void setProxyAddress( String mProxyAddress ) {
         this.proxyAddress = mProxyAddress;
     }
 
@@ -77,9 +83,10 @@ public class Connection {
     }
 
     /**
-     * @param proxyPort the mProxyPort to set
+     * @param proxyPort
+     *            the mProxyPort to set
      */
-    public void setProxyPort(String proxyPort) {
+    public void setProxyPort( String proxyPort ) {
         this.proxyPort = proxyPort;
     }
 
@@ -98,49 +105,68 @@ public class Connection {
     }
 
     public boolean connect() {
-        if (oauth_token != null) {
+        if ( oauth_token != null ) {
             try {
-                RequestorHolder.getRequestor().setThreadCredentials(oauth_token);
+                RequestorHolder.getRequestor().setThreadCredentials( oauth_token );
                 user = new User().info();
                 isConnected = true;
-            } catch (Exception e) {
+            }
+            catch ( Exception e ) {
                 disconnect();
-                JOptionPane.showMessageDialog(null, "Connection error !\nTry again later.", "Error", JOptionPane.ERROR_MESSAGE);
-                System.out.println(e.toString());
+                if ( e instanceof IOException
+                        && ( e.toString().contains( "HTTP response code: 401" ) || e.toString().contains(
+                                "HTTP response code: 400" ) ) )
+                    JOptionPane
+                            .showMessageDialog(
+                                    null,
+                                    new JLabel(
+                                            "<html><body><div style=\"text-align:left;margin-left:10px;\">Wrong user token.<br />Please check the user settings.</div></body></html>" ),
+                                    "Error", JOptionPane.ERROR_MESSAGE );
+                else
+                    JOptionPane
+                            .showMessageDialog(
+                                    null,
+                                    new JLabel(
+                                            "<html><body><div style=\"text-align:left;margin-left:25px;\">Connection error !<br />Try again later.</div></body></html>" ),
+                                    "Error", JOptionPane.ERROR_MESSAGE );
+                System.out.println( e.toString() );
             }
         }
         return isConnected;
     }
 
     public boolean refresh() {
-        if (oauth_token != null) {
+        if ( oauth_token != null ) {
             try {
-                RequestorHolder.getRequestor().setThreadCredentials(oauth_token);
+                RequestorHolder.getRequestor().setThreadCredentials( oauth_token );
                 user = new User().info();
-            } catch (Exception e) {
-                System.out.println(e.toString());
+            }
+            catch ( Exception e ) {
+                System.out.println( e.toString() );
             }
         }
         return isConnected;
     }
 
     public void disconnect() {
-        RequestorHolder.getRequestor().setThreadCredentials(null);
+        RequestorHolder.getRequestor().setThreadCredentials( null );
         isConnected = false;
     }
 
     public List<Item> getRootItems() throws Exception {
         try {
             return new Item().listAll();
-        } catch (Exception e) {
+        }
+        catch ( Exception e ) {
             throw e;
         }
     }
-    
-    public List<Item> getChildren(Item item) throws Exception {
+
+    public List<Item> getChildren( Item item ) throws Exception {
         try {
             return item.listChildren();
-        } catch (Exception e) {
+        }
+        catch ( Exception e ) {
             throw e;
         }
     }

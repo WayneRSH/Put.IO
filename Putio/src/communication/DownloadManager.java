@@ -1,5 +1,7 @@
 package communication;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -24,6 +26,7 @@ public class DownloadManager implements Runnable {
     protected Map<Integer, Download> sessionDownloads;
     protected Connection connection;
     protected Thread connectionThread;
+    private Boolean mustRefresh = false;
 
     // Last update time
     protected long lastUpdateTime = System.currentTimeMillis();
@@ -87,7 +90,7 @@ public class DownloadManager implements Runnable {
                         timeToNextUpdate = 0;
                     ms.setUpdateTime( "Time to next update: "
                             + String.valueOf( timeToNextUpdate ) + " seconds" );
-                    if ( Math.abs( timeSinceUpdate ) >= UserPreferences.PREF_SERVER_CHECK_INTERVAL * 1000 ) {
+                    if ( Math.abs( timeSinceUpdate ) >= UserPreferences.PREF_SERVER_CHECK_INTERVAL * 1000 || mustRefresh ) {
                         connection.refresh();
                         ms.setStatus( "Connected as "
                                 + connection.getUser().getName()
@@ -96,6 +99,7 @@ public class DownloadManager implements Runnable {
                                         .getUser().getDiskQuotaAvailable() ) );
                         refreshQueue();
                         lastUpdateTime = System.currentTimeMillis();
+                        mustRefresh = false;
                     }
                     if ( UserPreferences.PREF_AUTO_DOWNLOAD ) {
                         while ( activeDownloads.size() < UserPreferences.PREF_MAX_DOWNLOADS
@@ -111,37 +115,37 @@ public class DownloadManager implements Runnable {
                                     startDownload( d );
                                 }
                                 else {
-                                    ms.getItemTable()
-                                            .getModel()
-                                            .setValueAt(
-                                                    "Skipped",
-                                                    GuiOperations.getRowNumber(
-                                                            ms, d.getId() ), 5 );
-                                    if ( UserPreferences.PREF_FILE_SIZE_DELETE ) {
-                                        connection.refresh();
-                                        if ( d.delete() ) {
-                                            ms.getItemTable()
-                                                    .getModel()
-                                                    .setValueAt(
-                                                            "Skipped (Deleted)",
-                                                            GuiOperations
-                                                                    .getRowNumber(
-                                                                            ms,
-                                                                            d.getId() ),
-                                                            5 );
-                                        }
-                                        else {
-                                            ms.getItemTable()
-                                                    .getModel()
-                                                    .setValueAt(
-                                                            "Skipped (Delete failed!)",
-                                                            GuiOperations
-                                                                    .getRowNumber(
-                                                                            ms,
-                                                                            d.getId() ),
-                                                            5 );
-                                        }
-                                    }
+//                                    ms.getItemTable()
+//                                            .getModel()
+//                                            .setValueAt(
+//                                                    "Skipped",
+//                                                    GuiOperations.getRowNumber(
+//                                                            ms, d.getId() ), 5 );
+//                                    if ( UserPreferences.PREF_FILE_SIZE_DELETE ) {
+//                                        connection.refresh();
+//                                        if ( d.delete() ) {
+//                                            ms.getItemTable()
+//                                                    .getModel()
+//                                                    .setValueAt(
+//                                                            "Skipped (Deleted)",
+//                                                            GuiOperations
+//                                                                    .getRowNumber(
+//                                                                            ms,
+//                                                                            d.getId() ),
+//                                                            5 );
+//                                        }
+//                                        else {
+//                                            ms.getItemTable()
+//                                                    .getModel()
+//                                                    .setValueAt(
+//                                                            "Skipped (Delete failed!)",
+//                                                            GuiOperations
+//                                                                    .getRowNumber(
+//                                                                            ms,
+//                                                                            d.getId() ),
+//                                                            5 );
+//                                        }
+//                                    }
                                 }
                             }
                         }
@@ -151,12 +155,17 @@ public class DownloadManager implements Runnable {
                     Iterator<Download> downloads = activeDownloads.values()
                             .iterator();
                     while ( downloads.hasNext() ) {
-                        totalSpeed += downloads.next().getCurrentSpeed();
+                        totalSpeed += downloads.next().getCurrentAvgSpeed();
                     }
                     ms.updateCurrentDownloadSpeed( GuiOperations
                             .getReadableFromMBSize( totalSpeed ) + "/s" );
                 }
-                Thread.sleep( 1000 );
+                else {
+                    ms.updateCurrentDownloadSpeed( "0.0 MB/s" );
+                }
+                Thread.sleep( 200L );
+                ms.getItemPanel().updateDownload();
+                Thread.sleep( 200L );
             }
             catch ( InterruptedException e ) {
                 // ignored
@@ -179,7 +188,7 @@ public class DownloadManager implements Runnable {
                                 + " - Available Quota: "
                                 + GuiOperations.getReadableSize( connection
                                         .getUser().getDiskQuotaAvailable() ) );
-                        ms.cleanItemsPanel();
+                        ms.cleanItemPanel();
                         refreshQueue();
                         lastUpdateTime = System.currentTimeMillis();
                     }
@@ -187,7 +196,7 @@ public class DownloadManager implements Runnable {
                 else {
                     ms.setStatus( "Connection Error" );
                     ms.displayAsConnected( false );
-                    ms.cleanItemsPanel();
+                    ms.cleanItemPanel();
                 }
             }
         } );
@@ -195,17 +204,18 @@ public class DownloadManager implements Runnable {
     }
 
     public void disconnect() {
-        ms.getItemsPanel().stopOp();
+        ms.getItemPanel().stopOp();
         connection.disconnect();
         ms.setStatus( "Not connected" );
         ms.displayAsConnected( false );
-        ms.cleanItemsPanel();
+        ms.cleanItemPanel();
     }
 
     public void refreshQueue() {
         try {
-            ms.getItemsPanel().populateTree( connection );
-            List<Item> items = ms.getItemsPanel().getItems();
+            ms.getItemPanel().populateTree( connection );
+            List<Item> items = ms.getItemPanel().getItems();
+            //System.out.println( items );
             if ( items != null ) {
                 ListIterator<Item> i = items.listIterator();
                 while ( i.hasNext() ) {
@@ -218,38 +228,19 @@ public class DownloadManager implements Runnable {
             System.out.println( e.toString() );
         }
     }
+    
+    public void refresh() {
+        ms.getItemPanel().stopOp();
+        this.mustRefresh = true;
+    }
 
     private void addItemsToQueue( Item item ) {
-        // if (!item.isDir()) {
         if ( isQueueNecessary( item ) ) {
-            LeafNode leaf = (LeafNode) ms.getItemsPanel().getItemInTree( item );
-            String path = UserPreferences.PREF_DOWNLOAD_TARGET
-                    + leaf.getPathDir().toString();
+            LeafNode leaf = (LeafNode) ms.getItemPanel().getItemInTree( item );
             Download d = new Download( UserPreferences.PREF_USERTOKEN, item,
                     leaf, UserPreferences.PREF_DOWNLOAD_TARGET, connection );
             downloadQueue.add( d );
             sessionDownloads.put( d.getId(), d );
-            // ((DefaultTableModel) ms.getItemTable().getModel()).addRow(new
-            // Object[] { d.getId(), item.getName(), item.getContentType(),
-            // String.valueOf(item.getSize()), item.getDownloadUrl(), "" });
-        }
-        // }
-        try {
-            List<Item> childrenItems = item.listChildren();
-            if ( childrenItems.size() == 0 && item.isDir()
-                    && UserPreferences.PREF_AUTO_CLEAN ) {
-                item.delete();
-            }
-            else {
-                ListIterator<Item> i = childrenItems.listIterator();
-                while ( i.hasNext() ) {
-                    Item currentItem = i.next();
-                    addItemsToQueue( currentItem );
-                }
-            }
-        }
-        catch ( Exception e ) {
-            // No children items
         }
     }
 
@@ -287,7 +278,7 @@ public class DownloadManager implements Runnable {
                                         JOptionPane
                                                 .showMessageDialog(
                                                         null,
-                                                        "File was deleteed successfully!",
+                                                        "File was deleted successfully!",
                                                         "Success",
                                                         JOptionPane.INFORMATION_MESSAGE );
                                     }
@@ -318,10 +309,18 @@ public class DownloadManager implements Runnable {
                     }
                     else {
                         queueNecessary = false;
+                        break;
                     }
+                }
+                // Resume
+                else if ( !download.isCompleted() && !download.isFaulty() && !download.isActive() ) {
+                    queueNecessary = true;
+                    sessionDownloads.remove( download.getId() );
+                    break;
                 }
                 else {
                     queueNecessary = false;
+                    break;
                 }
             }
         }
@@ -344,7 +343,8 @@ public class DownloadManager implements Runnable {
                     String status;
                     float downloadPercent = 0.0f;
                     long prevSystemTime = System.currentTimeMillis(), currentSystemTime;
-                    long prevDownloadedAmount = 0L, currentDownloadedAmount = 0L;
+                    long prevDownloadedAmount = download.getDownloadedAmount();
+                    long currentDownloadedAmount = download.getDownloadedAmount();
                     LeafNode leaf;
                     while ( t.isAlive() ) {
                         leaf = GuiOperations.getLeaf( ms, download.getItem() );
@@ -352,7 +352,6 @@ public class DownloadManager implements Runnable {
                             if ( download.getDownloadedAmount() == 0L ) {
                                 status = "Starting download";
                                 prevSystemTime = System.currentTimeMillis();
-                                leaf.focus();
                             }
                             else if ( download.isCanceled() ) {
                                 status = "Canceling download";
@@ -372,14 +371,24 @@ public class DownloadManager implements Runnable {
                             }
                             else {
                                 currentSystemTime = System.currentTimeMillis();
-                                currentDownloadedAmount = download
-                                        .getDownloadedAmount();
+                                currentDownloadedAmount = download.getDownloadedAmount();
+                                if (currentSystemTime == prevSystemTime)
+                                    currentSystemTime++;
                                 double downloadSpeed = ( ( currentDownloadedAmount - prevDownloadedAmount ) / 1048576.0 )
                                         / ( ( currentSystemTime - prevSystemTime ) / 1000.0 );
                                 // Update current speed of download
                                 download.setCurrentSpeed( downloadSpeed );
+                                double timeRemaining = Math.round( ( download.getTotalLength() - currentDownloadedAmount ) / ( download.getCurrentAvgSpeed() * 1048.576 ) );
+                                int seconds = (int) (timeRemaining / 1000) % 60 ;
+                                int minutes = (int) ((timeRemaining / (1000*60)) % 60);
+                                int hours   = (int) ((timeRemaining / (1000*60*60)) % 24);
+                                String timeRemainingTxt = String.format("%02d:%02d:%02d",
+                                        hours,
+                                        minutes,
+                                        seconds
+                                    );
                                 String readableDownloadSpeed = GuiOperations
-                                        .getReadableFromMBSize( downloadSpeed );
+                                        .getReadableFromMBSize( download.getCurrentAvgSpeed() );
                                 prevSystemTime = currentSystemTime;
                                 prevDownloadedAmount = currentDownloadedAmount;
                                 downloadPercent = (float) currentDownloadedAmount
@@ -390,7 +399,8 @@ public class DownloadManager implements Runnable {
                                         + GuiOperations
                                                 .getReadableSize( download
                                                         .getTotalLength() )
-                                        + " (" + readableDownloadSpeed + "/s)";
+                                        + " (" + readableDownloadSpeed + "/s)"
+                                        + " ETA : " + timeRemainingTxt;
                             }
                             leaf.setDownPerc( downloadPercent );
                             leaf.setStatus( status );
@@ -398,8 +408,11 @@ public class DownloadManager implements Runnable {
                         Thread.sleep( 1000L );
                     }
                 }
-                catch ( InterruptedException e ) {
+                catch ( Exception e ) {
                     // ignore
+                    StringWriter sw = new StringWriter();
+                    e.printStackTrace( new PrintWriter( sw ) );
+                    System.out.println( sw.toString() );
                 }
                 finally {
                     activeDownloads.remove( download.getId() );
