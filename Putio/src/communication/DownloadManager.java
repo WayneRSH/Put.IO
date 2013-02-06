@@ -2,6 +2,7 @@ package communication;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.ConcurrentModificationException;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -12,7 +13,7 @@ import java.util.Queue;
 
 import javax.swing.JOptionPane;
 
-import gui.ItemPanel.LeafNode;
+import gui.LeafNode;
 import gui.MainScreen;
 import util.GuiOperations;
 import util.UserPreferences;
@@ -155,7 +156,13 @@ public class DownloadManager implements Runnable {
                     Iterator<Download> downloads = activeDownloads.values()
                             .iterator();
                     while ( downloads.hasNext() ) {
-                        totalSpeed += downloads.next().getCurrentAvgSpeed();
+                        try {
+                            totalSpeed += downloads.next().getCurrentAvgSpeed();
+                        }
+                        catch ( ConcurrentModificationException e ) {
+                            System.out.println( e );
+                            Thread.sleep( 1000L );
+                        }
                     }
                     ms.updateCurrentDownloadSpeed( GuiOperations
                             .getReadableFromMBSize( totalSpeed ) + "/s" );
@@ -404,6 +411,7 @@ public class DownloadManager implements Runnable {
                             }
                             leaf.setDownPerc( downloadPercent );
                             leaf.setStatus( status );
+                            ms.getItemPanel().repaint();
                         }
                         Thread.sleep( 1000L );
                     }
@@ -434,6 +442,7 @@ public class DownloadManager implements Runnable {
                                 leaf.setStatus( "Canceled/Skipped" );
                             }
                         }
+                        ms.getItemPanel().repaint();
                     }
                     // Update system tray icon
                     ms.changeTrayIcon( activeDownloads.size() > 0 );

@@ -31,6 +31,7 @@ import javax.swing.border.EmptyBorder;
 
 import communication.DownloadManager;
 import util.GuiOperations;
+import util.StaticIcon;
 import util.UserPreferences;
 
 public class MainScreen extends JFrame {

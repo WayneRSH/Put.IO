@@ -71,53 +71,61 @@ public class DownloadPart implements Runnable {
             // Check resuming
             if ( this.file.exists() ) {
                 Long off = this.file.length();
-                if ( off < this.size ) {
+                if ( off <= this.size ) {
                     this.isResuming = true;
                     this.offset += off;
                     this.downloadedAmount = off;
                     this.downloadResumer.addDownloadedAmount( this.downloadedAmount );
                 }
             }
+            
+//            System.out.println( this.file.getPath() + "\nresume?" + isResuming + " offset:" + this.offset
+//                    + " dlam:" + this.downloadedAmount + " exist?" + this.file.exists() 
+//                    + " size:" + this.size + " length:" + this.file.length() );
 
-            this.fileOS = new FileOutputStream( this.file, isResuming );
-
-            URL url = new URL( downloadResumer.getRootDownload().getUrl().replace( " ", "%20" ) );
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            // Specify what part of file to download
-            if ( this.offset > 0 )
-                conn.setRequestProperty( "Range", "bytes=" + offset + "-" );
-
-            conn.connect();
-            int responseCode = conn.getResponseCode();
-            if ( responseCode == HttpURLConnection.HTTP_OK || responseCode == HttpURLConnection.HTTP_PARTIAL ) {
-                byte[] tmp_buffer = new byte[ 4096 ];
-                InputStream is = conn.getInputStream();
-                int n;
-                while ( ( n = is.read( tmp_buffer ) ) > 0 && downloadedAmount < size ) {
-                    if ( !downloadResumer.getRootDownload().getConnection().isConnected )
-                        break;
-                    if ( downloadResumer.getRootDownload().isCanceled() ) {
-                        isFaulty = true;
-                        break;
-                    }
-                    if ( downloadedAmount + n > size ) {
-                        n = (int) ( size - downloadedAmount );
-                    }
-                    fileOS.write( tmp_buffer, 0, n );
-                    fileOS.flush();
-                    downloadedAmount += n;
-                    downloadResumer.addDownloadedAmount( n );
-                    
-                    // Wait if paused
-                    while ( downloadResumer.getRootDownload().isPaused() && !downloadResumer.getRootDownload().isCanceled() )
-                        Thread.sleep( 1000 );
-                }
-                fileOS.close();
-                if ( downloadedAmount == size )
-                    isCompleted = true;
-            }
+            if ( downloadedAmount == size )
+                isCompleted = true;
             else {
-                throw new IllegalStateException( "HTTP response: " + responseCode );
+                this.fileOS = new FileOutputStream( this.file, isResuming );
+    
+                URL url = new URL( downloadResumer.getRootDownload().getUrl().replace( " ", "%20" ) );
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                // Specify what part of file to download
+                if ( this.offset > 0 )
+                    conn.setRequestProperty( "Range", "bytes=" + offset + "-" );
+    
+                conn.connect();
+                int responseCode = conn.getResponseCode();
+                if ( responseCode == HttpURLConnection.HTTP_OK || responseCode == HttpURLConnection.HTTP_PARTIAL ) {
+                    byte[] tmp_buffer = new byte[ 4096 ];
+                    InputStream is = conn.getInputStream();
+                    int n;
+                    while ( ( n = is.read( tmp_buffer ) ) > 0 && downloadedAmount < size ) {
+                        if ( !downloadResumer.getRootDownload().getConnection().isConnected )
+                            break;
+                        if ( downloadResumer.getRootDownload().isCanceled() ) {
+                            isFaulty = true;
+                            break;
+                        }
+                        if ( downloadedAmount + n > size ) {
+                            n = (int) ( size - downloadedAmount );
+                        }
+                        fileOS.write( tmp_buffer, 0, n );
+                        fileOS.flush();
+                        downloadedAmount += n;
+                        downloadResumer.addDownloadedAmount( n );
+                        
+                        // Wait if paused
+                        while ( downloadResumer.getRootDownload().isPaused() && !downloadResumer.getRootDownload().isCanceled() )
+                            Thread.sleep( 1000 );
+                    }
+                    fileOS.close();
+                    if ( downloadedAmount == size )
+                        isCompleted = true;
+                }
+                else {
+                    throw new IllegalStateException( "HTTP response: " + responseCode );
+                }
             }
         }
         catch ( Exception e ) {

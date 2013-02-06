@@ -1,13 +1,11 @@
 package gui;
 
-import gui.ItemPanel.LeafNode;
-
 import java.awt.Color;
 import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.awt.Insets;
-import java.awt.Point;
-import java.awt.Polygon;
 import java.awt.Rectangle;
+import java.awt.RenderingHints;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.image.BufferedImage;
@@ -19,6 +17,8 @@ import javax.swing.Timer;
 import javax.swing.plaf.basic.BasicTreeUI;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.TreePath;
+
+import util.StaticIcon;
 
 public class AnimatedTreeUI extends BasicTreeUI {
 
@@ -50,7 +50,9 @@ public class AnimatedTreeUI extends BasicTreeUI {
     private static Color colorLeafSel = new Color( 41, 151, 248, 150 );
     private static Color colorLeafSelBorder = new Color( 29, 119, 197, 150 );
     
-    private static int alpha = 0;
+    private static StaticIcon play = new StaticIcon( StaticIcon.miniPlayIcon );
+    private static StaticIcon pause = new StaticIcon( StaticIcon.miniPauseIcon );
+    private static StaticIcon stop = new StaticIcon( StaticIcon.miniStopIcon );
 
     public AnimatedTreeUI() {
         super();
@@ -69,48 +71,38 @@ public class AnimatedTreeUI extends BasicTreeUI {
                 colorTmp = colorLeafSel;
                 colorBorderTmp = colorLeafSelBorder;
             }
-            Graphics g2 = g.create();
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                                RenderingHints.VALUE_ANTIALIAS_ON);
             g2.setColor( colorTmp );
             // Download bar
             g2.fillRect( tree.getVisibleRect().x + 4, bounds.y + 2, Math.round( ( ( tree.getVisibleRect().width - 10 )
-                    * ( (LeafNode) node ).getDownPerc() * 100 ) / 100 ), bounds.height - 6 );
+                    * ( (LeafNode) node ).getDownPerc() * 100 ) / 100 ), bounds.height - 5 );
             g2.setColor( colorBorderTmp );
-            g2.drawRect( tree.getVisibleRect().x + 4, bounds.y + 2, tree.getVisibleRect().width - 10, bounds.height - 6 );
-            drawControls(g, bounds, tree, row, (LeafNode)node);
+            g2.drawRect( tree.getVisibleRect().x + 4, bounds.y + 2, tree.getVisibleRect().width - 10, bounds.height - 5 );
+            drawControls(g2, bounds, tree, row, (LeafNode)node);
             g2.dispose();
         }
     }
     
-    private static void drawControls( Graphics g, Rectangle bounds, JTree tree, int row, LeafNode node ) {
+    private static void drawControls( Graphics2D g, Rectangle bounds, JTree tree, int row, LeafNode node ) {
         if ( node.getDownload() != null ) {
             boolean isRowSelected = tree.isRowSelected( row );
-            
             if (isRowSelected) {
-                alpha++;
-                if (alpha >= 255)
-                    alpha = 255;
-                else
-                    tree.repaint();
+                int w = play.getIconWidth();
+                int h = play.getIconHeight();
+                BufferedImage bi = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+                Graphics g2 = bi.getGraphics();
+                play.paintIcon(null, g2, 0, 0);
+                g.drawImage(bi, null, tree.getVisibleRect().width - 41, bounds.y + 4 );
+                
+                w = stop.getIconWidth();
+                h = stop.getIconHeight();
+                bi = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+                g2 = bi.getGraphics();
+                stop.paintIcon(null, g2, 0, 0);
+                g.drawImage(bi, null, tree.getVisibleRect().width - 24, bounds.y + 4 );
             }
-            else {
-                alpha--;
-                if (alpha <= 0)
-                    alpha = 0;
-                else
-                    tree.repaint();
-            }
-            
-            // Play/stop
-            g.setColor( new Color( 250, 50, 50, alpha ) );
-            Point p1 = new Point(tree.getVisibleRect().width - 50, bounds.y + 6 );
-            Point p2 = new Point(tree.getVisibleRect().width - 50, ( bounds.y + bounds.height ) - 8 );
-            Point p3 = new Point(tree.getVisibleRect().width - 40, ( bounds.y + bounds.height / 2 ) -1 );
-    
-            int[] xs = { p1.x, p2.x, p3.x };
-            int[] ys = { p1.y, p2.y, p3.y };
-            Polygon triangle = new Polygon(xs, ys, xs.length);
-    
-            g.fillPolygon(triangle);
         }
     }
 

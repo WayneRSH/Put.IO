@@ -1,6 +1,6 @@
 package communication;
 
-import gui.ItemPanel.LeafNode;
+import gui.LeafNode;
 
 import java.io.File;
 import java.io.IOException;

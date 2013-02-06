@@ -1,40 +1,7 @@
-/*
- * Copyright (c) 1995, 2008, Oracle and/or its affiliates. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- *
- *   - Redistributions of source code must retain the above copyright
- *     notice, this list of conditions and the following disclaimer.
- *
- *   - Redistributions in binary form must reproduce the above copyright
- *     notice, this list of conditions and the following disclaimer in the
- *     documentation and/or other materials provided with the distribution.
- *
- *   - Neither the name of Oracle or the names of its
- *     contributors may be used to endorse or promote products derived
- *     from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
- * IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
- * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
- * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
- * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
- * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
- * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
- * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
- * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
-
 package gui;
 
-import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
 import javax.swing.JEditorPane;
-import javax.swing.JLabel;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
@@ -44,9 +11,7 @@ import javax.swing.JSplitPane;
 import javax.swing.ToolTipManager;
 
 import javax.swing.JTree;
-import javax.swing.plaf.basic.BasicTreeUI;
 import javax.swing.tree.DefaultMutableTreeNode;
-import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.ExpandVetoException;
 import javax.swing.tree.TreePath;
@@ -58,9 +23,11 @@ import javax.swing.event.TreeSelectionListener;
 import javax.swing.event.TreeWillExpandListener;
 
 import communication.Connection;
-import communication.Download;
 import util.GuiOperations;
 import util.PrefObj;
+import util.SortTreeModel;
+import util.TreeStringComparatorDate;
+import util.TreeStringComparatorName;
 import util.UserPreferences;
 
 import api.Item;
@@ -73,8 +40,6 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Set;
 import java.util.prefs.Preferences;
-import java.awt.Color;
-import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.GridLayout;
 import java.awt.event.ActionEvent;
@@ -84,14 +49,12 @@ import java.awt.event.AdjustmentListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
-import java.awt.event.MouseMotionAdapter;
-import java.awt.event.MouseMotionListener;
-import java.io.File;
 
 public class ItemPanel extends JPanel implements TreeSelectionListener {
 
     private static final long serialVersionUID = -6845029704959817538L;
     private JTree tree;
+    private JSplitPane splitPane;
     private JPanel rightPanel;
     private JEditorPane infoPane;
     private JTreeDownload downloadTree;
@@ -103,10 +66,15 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
     private String loadNodeTxt = "Loading...";
     private DefaultTreeModel waitTreeModel;
     private SortTreeModel treeModel;
-    private Boolean treeLoaded = false;
+    private Preferences prefs = null;
     private Connection conn;
-    private Boolean stopOperation = false;
     private MainScreen ms;
+    private Boolean treeLoaded = false;
+    private Boolean stopOperation = false;
+    private Boolean sortedByName = true;
+    private Boolean playWithLineStyle = false;
+    private String lineStyle = "Horizontal";
+
     protected JPopupMenu itemMenu;
     protected JMenuItem autoDownloadEveryMenuItem;
     protected JMenuItem addToAutomaticDownloadMenuItem;
@@ -119,383 +87,8 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
     protected JMenuItem cleanDownloadedMenuItem;
     protected JMenuItem sortByNameMenuItem;
     protected JMenuItem sortByDateMenuItem;
-    private Boolean sortedByName = true;
-    private StaticIcon openFolderIcon = new StaticIcon( StaticIcon.openFolderIcon );
-    private StaticIcon openFolderSelIcon = new StaticIcon( StaticIcon.openFolderSelIcon );
-    private StaticIcon closedFolderIcon = new StaticIcon( StaticIcon.closedFolderIcon );
-    private StaticIcon closedFolderSelIcon = new StaticIcon( StaticIcon.closedFolderSelIcon );
-    private StaticIcon putioIcon = new StaticIcon( StaticIcon.putioTreeIcon );
-    private Color colorSel = new Color( 180, 180, 180 );
-    private Preferences prefs = null;
-    private List<String> prefsAutoDLFolder;
-    private JSplitPane splitPane;
 
-    private class NodeRenderer extends DefaultTreeCellRenderer {
-        private static final long serialVersionUID = 3297546151711973066L;
-
-        public Component getTreeCellRendererComponent( JTree tree, Object value, boolean sel,
-                boolean expanded, boolean leaf, int row, boolean hasFocus ) {
-            
-            if ( value instanceof LeafNode ) {
-                JPanel panel = new JPanel();
-                String text = ( ( (LeafNode) value ).getItem() ).toString();
-                panel.add( new JLabel( text ) );
-                panel.setBackground( new Color( 0, 0, 0, 0 ) );
-                panel.setEnabled( tree.isEnabled() );
-                return panel;
-            }
-            else {
-                super.getTreeCellRendererComponent( tree, value, sel, expanded, leaf, row, hasFocus );
-
-                // Custom folder icon
-                if ( value instanceof FolderNode ) {
-                    if ( expanded ) {
-                        if ( ( (FolderNode) value ).isAutoDL() )
-                            setIcon( openFolderSelIcon );
-                        else
-                            setIcon( openFolderIcon );
-                    }
-                    else {
-                        if ( ( (FolderNode) value ).isAutoDL() )
-                            setIcon( closedFolderSelIcon );
-                        else
-                            setIcon( closedFolderIcon );
-                    }
-                }
-                // Root icon
-                else if ( ( (DefaultMutableTreeNode) value ).isRoot() )
-                    setIcon( putioIcon );
-
-                setBorder( BorderFactory.createEmptyBorder( 2, 2, 2, 2 ) );
-
-                if ( sel ) {
-                    if ( ( (DefaultMutableTreeNode) value ).isRoot() ) {
-                        setBackgroundSelectionColor( null );
-                        setForeground( Color.BLACK );
-                    }
-                    else {
-                        setBackgroundSelectionColor( colorSel );
-                    }
-                    setBorderSelectionColor( null );
-                }
-
-                return this;
-            }
-        }
-    }
-
-    public class FolderNode extends DefaultMutableTreeNode {
-        private static final long serialVersionUID = 5522674899094035461L;
-
-        private boolean isAutoDL = false;
-        private Item item;
-
-        public FolderNode( Object obj ) {
-            super( obj );
-            if ( obj instanceof Item ) {
-                this.item = (Item) obj;
-                if ( prefsAutoDLFolder.contains( item.getId() ) )
-                    this.isAutoDL = true;
-                else
-                    this.isAutoDL = false;
-            }
-        }
-
-        public void setAutoDL( boolean isAutoDL ) {
-            this.isAutoDL = isAutoDL;
-            if ( isAutoDL ) {
-                if ( !prefsAutoDLFolder.contains( this.item.getId() ) ) {
-                    prefsAutoDLFolder.add( this.item.getId() );
-                }
-            }
-            else {
-                if ( prefsAutoDLFolder.contains( this.item.getId() ) ) {
-                    prefsAutoDLFolder.remove( this.item.getId() );
-                }
-            }
-
-            try {
-                PrefObj.putObject( prefs, "AUTODL_FOLDERS", prefsAutoDLFolder );
-            }
-            catch ( Exception e ) {
-                e.printStackTrace();
-            }
-
-            tree.repaint();
-        }
-
-        public boolean isAutoDL() {
-            return isAutoDL;
-        }
-
-        public void setAutoDLVar( boolean isAutoDL ) {
-            this.isAutoDL = isAutoDL;
-            tree.repaint();
-        }
-    }
-
-    public class LeafNode extends DefaultMutableTreeNode {
-        private static final long serialVersionUID = 6674627800156445681L;
-
-        private Item item = null;
-        private Download download = null;
-        private float downloadPercentage = 0.0f;
-        private String status = "Unknown";
-
-        public LeafNode( Object obj ) {
-            super( obj );
-            if ( obj instanceof Item )
-                item = (Item) obj;
-            else if ( obj instanceof Download ) {
-                download = (Download) obj;
-                item = download.getItem();
-            }
-        }
-
-        public LeafNode( Object obj, float dwn, String st ) {
-            super( obj );
-            item = (Item) obj;
-            downloadPercentage = dwn;
-            status = st;
-        }
-
-        public Item getItem() {
-            return item;
-        }
-        
-        public Download getDownload() {
-            return download;
-        }
-
-        public float getDownPerc() {
-            return downloadPercentage;
-        }
-
-        public String getStatus() {
-            return status;
-        }
-
-        public void setStatus( String st ) {
-            this.status = st;
-            printInfo();
-        }
-
-        public void setDownPerc( float dwnPerc ) {
-            if ( dwnPerc > 1.0f )
-                downloadPercentage = 1.0f;
-            else
-                downloadPercentage = dwnPerc;
-            if (download == null)
-                tree.repaint();
-        }
-
-        public TreePathDir getPathDir() {
-            TreePathDir path = new TreePathDir( this.getPath() );
-            return path;
-        }
-
-        private void printInfo() {
-            TreePath p = tree.getSelectionPath();
-            if ( p != null && p.getLastPathComponent() instanceof LeafNode
-                    && (LeafNode) p.getLastPathComponent() == this )
-                infoPane.setText( "Name : " + item.getName() + "\nId : " + item.getId() + "\nPid : "
-                        + item.getParentId() + "\nCreatedAt : " + item.getCreatedAt() + "\nPath : "
-                        + getPathDir().toString() + "\nStatus : " + getStatus() );
-        }
-
-        public void focus() {
-            expandSingleNode( this );
-        }
-    }
-
-    public class TreePathDir extends TreePath {
-        private static final long serialVersionUID = 7977104688434134727L;
-
-        public TreePathDir( Object[] path ) {
-            super( path );
-        }
-
-        @Override
-        public String toString() {
-            StringBuffer tempSpot = new StringBuffer( "" );
-
-            for ( int counter = 1, maxCounter = getPathCount(); counter < maxCounter; counter++ ) {
-                if ( counter > 1 )
-                    tempSpot.append( File.separator );
-                tempSpot.append( getPathComponent( counter ) );
-            }
-            return tempSpot.toString();
-        }
-
-        public String getDirs() {
-            Object obj[] = getPath();
-            String dirs = null;
-            for ( int i = 1; i < getPathCount() - 1; i++ ) {
-                if ( i > 1 )
-                    dirs += File.separator;
-                else
-                    dirs = "";
-                dirs += obj[ i ].toString();
-            }
-            return dirs;
-        }
-    }
-    
-    private class JTreeDownload extends JTree {
-        private static final long serialVersionUID = 6328897696354901796L;
-        private ArrayList<Download> downloads;
-        private DefaultTreeModel treeModelDL;
-        
-        public JTreeDownload() {
-            super( new DefaultTreeModel( new FolderNode( "Active downloads" ) ) );
-            treeModelDL = (DefaultTreeModel) getModel();
-            setEditable( false );
-            getSelectionModel().setSelectionMode( TreeSelectionModel.SINGLE_TREE_SELECTION );
-            setRowHeight( 0 );
-            setRootVisible( false );
-            setCellRenderer( new DefaultTreeCellRenderer() {
-                private static final long serialVersionUID = -7105201164017761653L;
-
-                public Component getTreeCellRendererComponent( JTree tree, Object value, boolean sel,
-                        boolean expanded, boolean leaf, int row, boolean hasFocus ) {
-                    
-                    if ( value instanceof LeafNode ) {
-                        JPanel panel = new JPanel();
-                        String text = ( ( (LeafNode) value ).getDownload() ).getItem().getName();
-                        panel.add( new JLabel( text ) );
-                        panel.setBackground( new Color( 0, 0, 0, 0 ) );
-                        panel.setEnabled( tree.isEnabled() );
-                        return panel;
-                    }
-                    else {
-                        super.getTreeCellRendererComponent( tree, value, sel, expanded, leaf, row, hasFocus );
-                        return this;
-                    }
-                }
-            } );
-            MouseMotionListener mml = new MouseMotionAdapter() {
-                @Override
-                public void mouseMoved( MouseEvent e ) {
-                    int selRow = downloadTree.getRowForLocation( 0, e.getY() );
-                    if ( selRow > -1 ) {
-                        TreePath selTmp = downloadTree.getPathForRow( selRow );
-                        downloadTree.setSelectionPath( selTmp );
-                    }
-                    else
-                        downloadTree.setSelectionRow( -1 );
-                    super.mouseMoved( e );
-                }
-            };
-            addMouseMotionListener( mml );
-            MouseListener ml = new MouseAdapter() {
-                @Override
-                public void mouseExited( MouseEvent e ) {
-                    downloadTree.setSelectionRow( -1 );
-                    super.mouseExited( e );
-                }
-                
-                @Override
-                public void mouseReleased( MouseEvent e ) {
-                    TreePath path = downloadTree.getSelectionPath();
-                    if ( path != null ) {
-                        Object obj = path.getLastPathComponent();
-                        if ( obj instanceof LeafNode ) {
-                            DefaultMutableTreeNode node = getItemInTree( ( (LeafNode) obj ).getDownload().getItem() );
-                            if ( node != null && node instanceof LeafNode )
-                                ( (LeafNode) node ).focus();
-                        }
-                    }
-                    super.mouseReleased( e );
-                }
-            };
-            addMouseListener( ml );
-            setUI( new BasicTreeUI() {
-                @Override
-                protected void paintRow( java.awt.Graphics g, java.awt.Rectangle clipBounds,
-                        java.awt.Insets insets, java.awt.Rectangle bounds, TreePath path, int row,
-                        boolean isExpanded, boolean hasBeenExpanded, boolean isLeaf ) {
-                    AnimatedTreeUI.drawCell( g, bounds, downloadTree, path, row );
-                    super.paintRow( g, clipBounds, insets, bounds, path, row, isExpanded, hasBeenExpanded,
-                            isLeaf );
-                };
-            } );
-            downloads = new ArrayList<Download>( 1 );
-        }
-        public void addDL( Download download ) {
-            if ( !downloads.contains( download ) ) {
-                //System.out.println( "add dl " + download.getItem().getName() );
-                downloads.add( download );
-                if (downloads.size() == 1) {
-                    setRootVisible( true );
-                }
-                treeModelDL.insertNodeInto( new LeafNode( download ),
-                        ( (DefaultMutableTreeNode) treeModelDL.getRoot() ),
-                        ( (DefaultMutableTreeNode) treeModelDL.getRoot() ).getChildCount() );
-                if (downloads.size() == 1) {
-                    expandRow( 0 );
-                    setRootVisible( false );
-                }
-            }
-            else {
-                LeafNode node = getNode( download );
-                if ( node != null ) {
-                    node.setDownPerc( (float) download.getDownloadedAmount() / (float) download.getTotalLength() );
-                }
-            }
-            if (downloads.size() >= 1)
-                this.expandRow( 0 );
-        }
-        public void removeDL( Download download ) {
-            if ( downloads.contains( download ) ) {
-                downloads.remove( download );
-                LeafNode node = getNode( download );
-                if ( node != null ) {
-                    treeModelDL.removeNodeFromParent( node );
-                    downloadTree.repaint();
-                }
-            }
-        }
-        public void updateDL() {
-            Iterator<Download> dls = ms.getDownloadManager().getActiveDownloads().values().iterator();
-            while ( dls.hasNext() ) {
-                Download dl = dls.next();
-                addDL( dl );
-            }
-            List<Download> delList = new ArrayList<Download>(1);
-            ListIterator<Download> li = downloads.listIterator();
-            while ( li.hasNext() ) {
-                Download dl = li.next();
-                if ( !dl.isActive() )
-                    delList.add( dl );
-            }
-            li = delList.listIterator();
-            while ( li.hasNext() ) {
-                Download dl = li.next();
-                removeDL( dl );
-            }
-            downloadTree.repaint();
-        }
-        public LeafNode getNode( Download download ) {
-            for ( @SuppressWarnings( "rawtypes" )
-            Enumeration e = ( (DefaultMutableTreeNode) treeModelDL.getRoot() ).children(); e
-                    .hasMoreElements(); ) {
-                LeafNode curNode = (LeafNode) e.nextElement();
-                Object curObj = curNode.getUserObject();
-                if ( curObj instanceof Download ) {
-                    Download dl = (Download) curObj;
-                    if ( dl.getItem().getId().equals( download.getItem().getId() ) ) {
-                        return curNode;
-                    }
-                }
-            }
-            return null;
-        }
-    }
-
-    // Optionally play with line styles. Possible values are
-    // "Angled" (the default), "Horizontal", and "None".
-    private static boolean playWithLineStyle = false;
-    private static String lineStyle = "Horizontal";
+    public static List<String> prefsAutoDLFolder;
 
     @SuppressWarnings( "unchecked" )
     public ItemPanel( MainScreen mainScreen ) throws Exception {
@@ -524,6 +117,7 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
                 catch ( Exception e1 ) {
                     e1.printStackTrace();
                 }
+                tree.repaint();
             }
         } );
         addToAutomaticDownloadMenuItem = new JMenuItem( "Add to automatic download" );
@@ -533,7 +127,8 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
                 TreePath treePath = tree.getSelectionPath();
                 Object node = treePath.getLastPathComponent();
                 if ( node instanceof FolderNode )
-                    ( (FolderNode) node ).setAutoDL( !( (FolderNode) node ).isAutoDL );
+                    ( (FolderNode) node ).setAutoDL( !( (FolderNode) node ).isAutoDL() );
+                tree.repaint();
             }
         } );
         pauseOrResumeDownloadMenuItem = new JMenuItem( "Pause/resume selected" );
@@ -708,19 +303,19 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
         } );
 
         rightPanel = new JPanel();
-        rightPanel.setLayout(new BoxLayout(rightPanel, BoxLayout.PAGE_AXIS));
-        
+        rightPanel.setLayout( new BoxLayout( rightPanel, BoxLayout.PAGE_AXIS ) );
+
         // Create the HTML viewing pane
         infoPane = new JEditorPane();
         infoPane.setEditable( false );
         JScrollPane infoView = new JScrollPane( infoPane );
         infoView.setPreferredSize( new Dimension( 0, 0 ) );
-        
-        downloadTree = new JTreeDownload();
+
+        downloadTree = new JTreeDownload( ms );
         JScrollPane downView = new JScrollPane( downloadTree );
         downView.setPreferredSize( new Dimension( 0, 0 ) );
         downView.setBorder( new TitledBorder( "Active downloads" ) );
-        
+
         rightPanel.add( infoView );
         rightPanel.add( downView );
 
@@ -750,6 +345,10 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
 
     /** Required by TreeSelectionListener interface. */
     public void valueChanged( TreeSelectionEvent e ) {
+        updateInfo();
+    }
+    
+    private void updateInfo() {
         DefaultMutableTreeNode node = (DefaultMutableTreeNode) tree.getLastSelectedPathComponent();
 
         if ( node == null )
@@ -757,21 +356,10 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
 
         Object obj = node.getUserObject();
         if ( obj instanceof Item ) {
-
-            Item nodeInfo = (Item) obj;
-            TreePathDir path = null;
-            String status = "";
-
-            if ( node instanceof LeafNode ) {
-                path = ( (LeafNode) node ).getPathDir();
-                status = ( (LeafNode) node ).getStatus();
-            }
-            else
-                path = new TreePathDir( node.getPath() );
-
-            infoPane.setText( "Name : " + nodeInfo.getName() + "\nId : " + nodeInfo.getId() + "\nPid : "
-                    + nodeInfo.getParentId() + "\nCreatedAt : " + nodeInfo.getCreatedAt() + "\nPath : "
-                    + path.toString() + "\nStatus : " + status );
+            if ( node instanceof LeafNode )
+                infoPane.setText( ( (LeafNode) node ).getInfos() );
+            else if ( node instanceof FolderNode )
+                infoPane.setText( ( (FolderNode) node ).getInfos() );
         }
     }
 
@@ -1074,6 +662,26 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
         }
     }
 
+    private Boolean isItemInList( Item item, List<Item> list ) {
+        ListIterator<Item> itList = list.listIterator();
+        while ( itList.hasNext() ) {
+            Item curItem = itList.next();
+            if ( curItem.getId().equals( item.getId() ) )
+                return true;
+        }
+        return false;
+    }
+
+    private Boolean isParentShared( Item item, List<Item> list ) {
+        ListIterator<Item> itList = list.listIterator();
+        while ( itList.hasNext() ) {
+            Item curItem = itList.next();
+            if ( curItem.getId().equals( item.getParentId() ) && curItem.isShared() )
+                return true;
+        }
+        return false;
+    }
+
     public DefaultMutableTreeNode getItemInTree( Item item ) {
         for ( @SuppressWarnings( "rawtypes" )
         Enumeration e = ( (DefaultMutableTreeNode) treeModel.getRoot() ).breadthFirstEnumeration(); e
@@ -1120,26 +728,6 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
             }
         }
         return null;
-    }
-
-    private Boolean isItemInList( Item item, List<Item> list ) {
-        ListIterator<Item> itList = list.listIterator();
-        while ( itList.hasNext() ) {
-            Item curItem = itList.next();
-            if ( curItem.getId().equals( item.getId() ) )
-                return true;
-        }
-        return false;
-    }
-
-    private Boolean isParentShared( Item item, List<Item> list ) {
-        ListIterator<Item> itList = list.listIterator();
-        while ( itList.hasNext() ) {
-            Item curItem = itList.next();
-            if ( curItem.getId().equals( item.getParentId() ) && curItem.isShared() )
-                return true;
-        }
-        return false;
     }
 
     public void stopOp() {
@@ -1230,12 +818,13 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
         LeafNode leaf = (LeafNode) getItemInTree( item );
         leaf = (LeafNode) getItemInTree( item );
         leaf.setDownPerc( down );
+        tree.repaint();
     }
 
-    private void expandSingleNode( DefaultMutableTreeNode node ) {
+    public void focus( DefaultMutableTreeNode node ) {
         if ( node == null )
             return;
-        
+
         if ( node.isLeaf() && node != (DefaultMutableTreeNode) treeModel.getRoot() ) {
             TreePath pathNode = new TreePath( node.getPath() );
             node = (DefaultMutableTreeNode) node.getParent();
@@ -1252,5 +841,22 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
 
     public void updateDownload() {
         downloadTree.updateDL();
+    }
+
+    public JTree getTree() {
+        return tree;
+    }
+
+    @Override
+    public void repaint() {
+        if ( tree != null )
+            tree.repaint();
+        if ( downloadTree != null )
+            downloadTree.repaint();
+        if ( infoPane != null ) {
+            updateInfo();
+            infoPane.repaint();
+        }
+        super.repaint();
     }
 }

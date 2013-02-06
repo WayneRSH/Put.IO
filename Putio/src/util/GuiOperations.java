@@ -11,8 +11,8 @@ import api.Item;
 
 import communication.Download;
 import gui.ItemPanel;
+import gui.LeafNode;
 import gui.MainScreen;
-import gui.ItemPanel.LeafNode;
 
 public class GuiOperations {
     public static void connect(MainScreen ms) {
