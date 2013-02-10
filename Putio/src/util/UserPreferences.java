@@ -32,6 +32,7 @@ public class UserPreferences {
     public static final String BEHAVIOR_OVERWRITE = "BEHAVIOR_OVERWRITE";
     public static final String BEHAVIOR_SORT_BY = "BEHAVIOR_SORT_BY";
     public static final String LOAD_SHARED = "LOAD_SHARED";
+    public static final String BEHAVIOR_DOWNLOAD_EVERYTHING = "BEHAVIOR_DOWNLOAD_EVERYTHING";
     // Preference options
     public static final int OPTION_DOWNLOAD_AGAIN = 0;
     public static final int OPTION_OVERWRITE = 0;
@@ -66,6 +67,7 @@ public class UserPreferences {
     public static int PREF_BEHAVIOR_OVERWRITE;
     public static int PREF_BEHAVIOR_SORT_BY;
     public static boolean PREF_LOAD_SHARED;
+    public static boolean PREF_BEHAVIOR_DOWNLOAD_EVERYTHING;
 
     public static void loadUserPreferences() {
         if ( PREFS == null )
@@ -94,6 +96,7 @@ public class UserPreferences {
         PREF_BEHAVIOR_OVERWRITE = PREFS.getInt( BEHAVIOR_OVERWRITE, 0 );
         PREF_BEHAVIOR_SORT_BY = PREFS.getInt( BEHAVIOR_SORT_BY, 0 );
         PREF_LOAD_SHARED = PREFS.getBoolean( LOAD_SHARED, false );
+        PREF_BEHAVIOR_DOWNLOAD_EVERYTHING = PREFS.getBoolean( BEHAVIOR_DOWNLOAD_EVERYTHING, true );
     }
 
     public static void saveUserPreferences() {
@@ -123,5 +126,6 @@ public class UserPreferences {
         PREFS.putInt( BEHAVIOR_OVERWRITE, PREF_BEHAVIOR_OVERWRITE );
         PREFS.putInt( BEHAVIOR_SORT_BY, PREF_BEHAVIOR_SORT_BY );
         PREFS.putBoolean( LOAD_SHARED, PREF_LOAD_SHARED );
+        PREFS.putBoolean( BEHAVIOR_DOWNLOAD_EVERYTHING, PREF_BEHAVIOR_DOWNLOAD_EVERYTHING );
     }
 }

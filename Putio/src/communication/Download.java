@@ -62,6 +62,8 @@ public class Download implements Runnable {
     private DownloadResumer downResume;
     /** Download resume thread */
     private Thread downResThread;
+    
+    private String errorMsg;
 
     /**
      * @return the item
@@ -97,6 +99,10 @@ public class Download implements Runnable {
      */
     public String getPath() {
         return path;
+    }
+    
+    public String getItemPath() {
+        return (path + File.separator + filename);
     }
 
     /**
@@ -191,20 +197,24 @@ public class Download implements Runnable {
 
     public synchronized void setCurrentSpeed( double currentSpeed ) {
         this.currentSpeed = currentSpeed;
-        // Damn you resume
-        if ( this.avgSpeedList.size() == 39
-                || ( this.avgSpeedList.size() == 2 && ( this.avgSpeedList.get( 0 ) - this.avgSpeedList
-                        .get( 1 ) ) > 100 ) )
-            this.avgSpeedList.remove( 0 );
-        this.avgSpeedList.add( currentSpeed );
-        double avgSpeed = 0D;
-        for ( int i = 0; i < this.avgSpeedList.size(); i++ ) {
-            // Weighted average (the older the lesser)
-            avgSpeed += this.avgSpeedList.get( i )
-                    * ( (double) ( i + 1 ) / ( (double) ( this.avgSpeedList.size() + 1 ) / 2 ) );
+        
+        if ( !isPaused ) {
+            if ( this.avgSpeedList.size() == 39
+                    || ( this.avgSpeedList.size() == 2 && ( this.avgSpeedList.get( 0 ) - this.avgSpeedList
+                            .get( 1 ) ) > 100 ) )
+                this.avgSpeedList.remove( 0 );
+            this.avgSpeedList.add( currentSpeed );
+            double avgSpeed = 0D;
+            for ( int i = 0; i < this.avgSpeedList.size(); i++ ) {
+                // Weighted average (the older the lesser)
+                avgSpeed += this.avgSpeedList.get( i )
+                        * ( (double) ( i + 1 ) / ( (double) ( this.avgSpeedList.size() + 1 ) / 2 ) );
+            }
+            avgSpeed /= this.avgSpeedList.size();
+            this.currentAvgSpeed = avgSpeed;
         }
-        avgSpeed /= this.avgSpeedList.size();
-        this.currentAvgSpeed = avgSpeed;
+        else
+            this.currentAvgSpeed = 0;
     }
 
     /**
@@ -259,6 +269,10 @@ public class Download implements Runnable {
     public boolean isResuming() {
         return this.downResume.isResuming();
     }
+    
+    public String getErrorMsg() {
+        return this.errorMsg;
+    }
 
     public Download( String token, Item item, LeafNode leaf, String path, Connection connection ) {
         this.token = token;
@@ -306,7 +320,7 @@ public class Download implements Runnable {
                             "Overwrite (" + filename + ")", JOptionPane.YES_NO_OPTION,
                             JOptionPane.QUESTION_MESSAGE ) ) {
                     case JOptionPane.NO_OPTION:
-                        cancel();
+                        isCompleted = true;
                         leaf.setDownPerc( 1.0f );
                         throw new Exception( "File already exists!" );
                     }
@@ -316,24 +330,24 @@ public class Download implements Runnable {
                     case UserPreferences.OPTION_OVERWRITE:
                         break;
                     case UserPreferences.OPTION_SKIP:
-                        cancel();
+                        isCompleted = true;
                         leaf.setDownPerc( 1.0f );
                         throw new Exception( "File already exists!" );
                     case UserPreferences.OPTION_SKIP_DELETE:
-                        cancel();
+                        isCompleted = true;
                         connection.refresh();
                         delete();
                         throw new Exception( "File already exists!" );
                     case UserPreferences.OPTION_SKIP_SAME_SIZE:
                         if ( f.length() == totalLength ) {
-                            cancel();
+                            isCompleted = true;
                             leaf.setDownPerc( 1.0f );
                             throw new Exception( "File already exists with same size!" );
                         }
                         break;
                     case UserPreferences.OPTION_SKIP_SAME_SIZE_DELETE:
                         if ( f.length() == totalLength ) {
-                            cancel();
+                            isCompleted = true;
                             connection.refresh();
                             delete();
                             throw new Exception( "File already exists with same size!" );
@@ -353,12 +367,13 @@ public class Download implements Runnable {
             isCompleted = downResume.isCompleted();
 
             // Delete file in case of error
-            if ( isFaulty )
+            if ( isFaulty ) {
                 f.delete();
+                this.errorMsg = downResume.getErrorMsg();
+            }
             isActive = false;
         }
         catch ( Exception e ) {
-            isFaulty = true;
             isActive = false;
             //System.out.println( e.toString() );
         }
@@ -383,10 +398,19 @@ public class Download implements Runnable {
 
     public void cancel() {
         isCanceled = true;
+        isPaused = false;
+    }
+    
+    public void retry() {
+        isCanceled = false;
+        isPaused = false;
+        isFaulty = false;
+        isCompleted = false;
     }
 
     public void pause() {
-        isPaused = true;
+        if (!isCanceled)
+            isPaused = true;
     }
 
     public void resume() {

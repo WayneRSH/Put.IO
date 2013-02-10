@@ -7,6 +7,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 
 import javax.swing.BoxLayout;
+import javax.swing.ButtonGroup;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
@@ -16,6 +17,7 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPasswordField;
+import javax.swing.JRadioButton;
 import javax.swing.JTabbedPane;
 import javax.swing.JTextField;
 import javax.swing.border.EmptyBorder;
@@ -83,10 +85,14 @@ public class PreferencesScreen extends JFrame {
     protected JTextField downloadTargetText;
     protected JButton fileChooserButton;
     protected JFileChooser fileChooser;
-    protected JPanel maxParallelDownloadsPanel;
+    protected JPanel downloadWhatPanel;
+    protected JLabel downloadWhatLabel;
+    protected JRadioButton everythingRadio;
+    protected JRadioButton selFoldersRadio;
+    protected ButtonGroup downloadWhatGroup;
+    protected JPanel downloadPartsPanel;
     protected JLabel maxParallelDownloadsLabel;
     protected JTextField maxParallelDownloadsText;
-    protected JPanel downloadPartsPanel;
     protected JLabel downloadPartsLabel;
     protected JTextField downloadPartsText;
     protected JPanel fileSizeCheckPanel;
@@ -128,7 +134,7 @@ public class PreferencesScreen extends JFrame {
         contentPanel.setBorder(new EmptyBorder(5, 5, 5, 5));
         
         tabbedPanel = new JTabbedPane();
-        tabbedPanel.setPreferredSize( new Dimension( 500, 600 ) );
+        tabbedPanel.setPreferredSize( new Dimension( 500, 800 ) );
         connectionTabPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
 
         // User settings
@@ -234,11 +240,11 @@ public class PreferencesScreen extends JFrame {
         tabbedPanel.addTab("Startup", null, startupSettingsPanel);
 
         // Download Settings
-        downloadSettingsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        //downloadSettingsPanel.setLayout(new BoxLayout(downloadSettingsPanel, BoxLayout.PAGE_AXIS));
+        downloadSettingsPanel = new JPanel();
+        downloadSettingsPanel.setLayout(new BoxLayout(downloadSettingsPanel, BoxLayout.PAGE_AXIS));
         downloadSettingsPanel.setBorder(new TitledBorder("Download Settings"));
         autoDownloadPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        autoDownloadCheck = new JCheckBox("Download automatically", UserPreferences.PREF_AUTO_DOWNLOAD);
+        autoDownloadCheck = new JCheckBox("Download on connect", UserPreferences.PREF_AUTO_DOWNLOAD);
         autoDownloadPanel.add(autoDownloadCheck);
         downloadTargetPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         downloadTargetLabel = new JLabel("Target:");
@@ -260,14 +266,24 @@ public class PreferencesScreen extends JFrame {
         downloadTargetPanel.add(downloadTargetLabel);
         downloadTargetPanel.add(downloadTargetText);
         downloadTargetPanel.add(fileChooserButton);
-        maxParallelDownloadsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        downloadWhatPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        downloadWhatLabel = new JLabel("Download:");
+        everythingRadio = new JRadioButton("everything");
+        selFoldersRadio = new JRadioButton("selected folders");
+        selFoldersRadio.setToolTipText( "Right clic folder -> Add to automatic download" );
+        downloadWhatGroup = new ButtonGroup();
+        downloadWhatGroup.add( everythingRadio );
+        downloadWhatGroup.add( selFoldersRadio );
+        downloadWhatPanel.add( downloadWhatLabel );
+        downloadWhatPanel.add( everythingRadio );
+        downloadWhatPanel.add( selFoldersRadio );
+        downloadPartsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         maxParallelDownloadsLabel = new JLabel("Max parallel downloads:");
         maxParallelDownloadsText = new JTextField(String.valueOf(UserPreferences.PREF_MAX_DOWNLOADS), 2);
-        maxParallelDownloadsPanel.add(maxParallelDownloadsLabel);
-        maxParallelDownloadsPanel.add(maxParallelDownloadsText);
-        downloadPartsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         downloadPartsLabel = new JLabel("Parts for each download:");
         downloadPartsText = new JTextField(String.valueOf(UserPreferences.PREF_DOWNLOAD_PART_COUNT), 2);
+        downloadPartsPanel.add(maxParallelDownloadsLabel);
+        downloadPartsPanel.add(maxParallelDownloadsText);
         downloadPartsPanel.add(downloadPartsLabel);
         downloadPartsPanel.add(downloadPartsText);
         fileSizeCheckPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
@@ -288,7 +304,7 @@ public class PreferencesScreen extends JFrame {
         fileSizeDeletePanel.add(fileSizeDeleteCheck);
         downloadSettingsPanel.add(autoDownloadPanel);
         downloadSettingsPanel.add(downloadTargetPanel);
-        downloadSettingsPanel.add(maxParallelDownloadsPanel);
+        downloadSettingsPanel.add(downloadWhatPanel);
         downloadSettingsPanel.add(downloadPartsPanel);
         downloadSettingsPanel.add(fileSizeCheckPanel);
         downloadSettingsPanel.add(fileSizeDeletePanel);
@@ -426,6 +442,7 @@ public class PreferencesScreen extends JFrame {
         UserPreferences.PREF_DONT_ASK_OVERWRITE = overwriteCheck.isSelected();
         UserPreferences.PREF_BEHAVIOR_OVERWRITE = overwriteCombo.getSelectedIndex();
         UserPreferences.PREF_BEHAVIOR_SORT_BY = serverSortByCombo.getSelectedIndex();
+        UserPreferences.PREF_BEHAVIOR_DOWNLOAD_EVERYTHING = everythingRadio.isSelected();
         UserPreferences.saveUserPreferences();
         return true;
     }
@@ -456,6 +473,14 @@ public class PreferencesScreen extends JFrame {
         overwriteCheck.setSelected(UserPreferences.PREF_DONT_ASK_OVERWRITE);
         overwriteCombo.setSelectedIndex(UserPreferences.PREF_BEHAVIOR_OVERWRITE);
         serverSortByCombo.setSelectedIndex(UserPreferences.PREF_BEHAVIOR_SORT_BY);
+        if (UserPreferences.PREF_BEHAVIOR_DOWNLOAD_EVERYTHING) {
+            everythingRadio.setSelected( true );
+            selFoldersRadio.setSelected( false );
+        }
+        else {
+            everythingRadio.setSelected( false );
+            selFoldersRadio.setSelected( true );
+        }
 
         usernameText.setEnabled(!mainScreen.getDownloadManager().getConnection().isConnected());
         apiSecretText.setEnabled(!mainScreen.getDownloadManager().getConnection().isConnected());

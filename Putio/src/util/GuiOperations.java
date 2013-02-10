@@ -64,20 +64,20 @@ public class GuiOperations {
         result /= 10;
         return result;
     }
-
-    public static int getRowNumber(MainScreen ms, int downloadId) {
-//        for (int i = 0; i < ms.getItemTable().getModel().getRowCount(); i++) {
-//            if (((Integer) ms.getItemTable().getModel().getValueAt(i, 0)) == downloadId)
-//                return i;
-//        }
-        return -1;
-    }
     
     public static LeafNode getLeaf(MainScreen ms, Item item) {
         DefaultMutableTreeNode node = ms.getItemPanel().getItemInTree( item );
         if ( node != null && node instanceof LeafNode )
             return ( LeafNode ) node;
         return null;
+    }
+    
+    public static void toggleDownload(MainScreen ms) {
+        ms.getDownloadManager().downloading( !ms.getDownloadManager().isDownloading() );
+        if ( ms.getDownloadManager().isDownloading() )
+            pauseAll(ms, false);
+        else
+            pauseAll(ms, true);
     }
 
     public static void cleanDownloadedItems(ItemPanel it) {
@@ -94,19 +94,24 @@ public class GuiOperations {
         */
     }
 
-    public static void pauseOrResumeSelectedItem(ItemPanel it) {
-        /*
-        int selectedIndex = ms.getItemTable().getSelectedRow();
-        if (selectedIndex >= 0) {
-            Download download = ms.getDownloadManager().getSessionDownloads().get((Integer) ms.getItemTable().getValueAt(selectedIndex, 0));
-            if (download != null) {
-                if (download.isPaused())
-                    download.resume();
-                else
-                    download.pause();
-            }
+    public static void pauseOrResumeSelectedItem(MainScreen ms, Item item) {
+        Download download = ms.getDownloadManager().getDownload( item );
+        if (download != null) {
+            if (download.isPaused())
+                download.resume();
+            else
+                download.pause();
         }
-        */
+        ms.getItemPanel().repaint();
+    }
+    
+    public static void retrySelectedItem(MainScreen ms, Item item) {
+        Download download = ms.getDownloadManager().getDownload( item );
+        if (download != null) {
+            download.retry();
+        }
+        ms.getDownloadManager().refresh();
+        ms.getItemPanel().repaint();
     }
 
     public static void pauseAll(MainScreen ms, boolean isPause) {
@@ -121,18 +126,15 @@ public class GuiOperations {
                     download.pause();
             }
         }
+        ms.getItemPanel().repaint();
     }
 
-    public static void cancelSelectedItem(ItemPanel it) {
-        /*
-        int selectedIndex = ms.getItemTable().getSelectedRow();
-        if (selectedIndex >= 0) {
-            Download download = ms.getDownloadManager().getSessionDownloads().get((Integer) ms.getItemTable().getValueAt(selectedIndex, 0));
-            if (download != null) {
-                download.cancel();
-            }
+    public static void cancelSelectedItem(MainScreen ms, Item item) {
+        Download download = ms.getDownloadManager().getDownload( item );
+        if (download != null) {
+            download.cancel();
         }
-        */
+        ms.getItemPanel().repaint();
     }
 
     public static void cancelAll(ItemPanel it) {
@@ -205,6 +207,21 @@ public class GuiOperations {
             }
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(null, "Cannot open download folder! (" + ex.getMessage() + ")", "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+    
+    public static void launchItem(MainScreen ms, Item item) {
+        Download download = ms.getDownloadManager().getDownload( item );
+        if (download != null) {
+            try {
+                if (Desktop.isDesktopSupported()) {
+                    Desktop.getDesktop().open(new File(download.getItemPath()));
+                } else {
+                    JOptionPane.showMessageDialog(null, "Cannot launch item !", "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(null, "Cannot launch item ! (" + ex.getMessage() + ")", "Error", JOptionPane.ERROR_MESSAGE);
+            }
         }
     }
 }

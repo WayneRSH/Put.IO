@@ -236,14 +236,28 @@ public class MainScreen extends JFrame {
                     downloadManager.refresh();
             }
         } );
-        downloadButton = new JButton( playIcon );
+        if ( !UserPreferences.PREF_AUTO_DOWNLOAD ) {
+            downloadButton = new JButton( playIcon );
+            downloadButton.setToolTipText( "Download" );
+        }
+        else {
+            downloadButton = new JButton( pauseIcon );
+            downloadButton.setToolTipText( "Pause" );
+        }
         downloadButton.setFocusPainted( false );
         downloadButton.setFocusable( false );
-        downloadButton.setToolTipText( "Download" );
         downloadButton.addActionListener( new ActionListener() {
             @Override
             public void actionPerformed( ActionEvent e ) {
-                //GuiOperations.connect( mainScreen );
+                GuiOperations.toggleDownload( mainScreen );
+                if ( downloadManager.isDownloading() ) {
+                    downloadButton.setIcon( pauseIcon );
+                    downloadButton.setToolTipText( "Pause" );
+                }
+                else {
+                    downloadButton.setIcon( playIcon );
+                    downloadButton.setToolTipText( "Download" );
+                }
             }
         } );
         settingsButton = new JButton( settingsIcon );

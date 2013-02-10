@@ -14,6 +14,7 @@ import javax.swing.JTree;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.ExpandVetoException;
+import javax.swing.tree.TreeNode;
 import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
 import javax.swing.border.TitledBorder;
@@ -23,6 +24,7 @@ import javax.swing.event.TreeSelectionListener;
 import javax.swing.event.TreeWillExpandListener;
 
 import communication.Connection;
+import communication.Download;
 import util.GuiOperations;
 import util.PrefObj;
 import util.SortTreeModel;
@@ -49,6 +51,7 @@ import java.awt.event.AdjustmentListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
+import java.io.File;
 
 public class ItemPanel extends JPanel implements TreeSelectionListener {
 
@@ -87,6 +90,8 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
     protected JMenuItem cleanDownloadedMenuItem;
     protected JMenuItem sortByNameMenuItem;
     protected JMenuItem sortByDateMenuItem;
+    protected JMenuItem expandMenuItem;
+    protected JMenuItem collapseMenuItem;
 
     public static List<String> prefsAutoDLFolder;
 
@@ -124,8 +129,7 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
         addToAutomaticDownloadMenuItem.addActionListener( new ActionListener() {
             @Override
             public void actionPerformed( ActionEvent e ) {
-                TreePath treePath = tree.getSelectionPath();
-                Object node = treePath.getLastPathComponent();
+                Object node = tree.getLastSelectedPathComponent();
                 if ( node instanceof FolderNode )
                     ( (FolderNode) node ).setAutoDL( !( (FolderNode) node ).isAutoDL() );
                 tree.repaint();
@@ -135,14 +139,20 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
         pauseOrResumeDownloadMenuItem.addActionListener( new ActionListener() {
             @Override
             public void actionPerformed( ActionEvent e ) {
-                GuiOperations.pauseOrResumeSelectedItem( getItemPanel() );
+                Object node = tree.getLastSelectedPathComponent();
+                if ( node instanceof LeafNode ) {
+                    GuiOperations.pauseOrResumeSelectedItem( ms, ( (LeafNode) node ).getItem() );
+                }
             }
         } );
         cancelDownloadMenuItem = new JMenuItem( "Cancel selected" );
         cancelDownloadMenuItem.addActionListener( new ActionListener() {
             @Override
             public void actionPerformed( ActionEvent e ) {
-                GuiOperations.cancelSelectedItem( getItemPanel() );
+                Object node = tree.getLastSelectedPathComponent();
+                if ( node instanceof LeafNode ) {
+                    GuiOperations.cancelSelectedItem( ms, ( (LeafNode) node ).getItem() );
+                }
             }
         } );
         removeDownloadMenuItem = new JMenuItem( "Remove selected" );
@@ -194,6 +204,20 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
                 GuiOperations.changeSortOrder( ms, "date" );
             }
         } );
+        expandMenuItem = new JMenuItem( "Expand everything" );
+        expandMenuItem.addActionListener( new ActionListener() {
+            @Override
+            public void actionPerformed( ActionEvent e ) {
+                expandEverything();
+            }
+        } );
+        collapseMenuItem = new JMenuItem( "Collapse everything" );
+        collapseMenuItem.addActionListener( new ActionListener() {
+            @Override
+            public void actionPerformed( ActionEvent e ) {
+                collapseEverything();
+            }
+        } );
         itemMenu.add( autoDownloadEveryMenuItem );
         itemMenu.add( addToAutomaticDownloadMenuItem );
         itemMenu.addSeparator();
@@ -208,6 +232,9 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
         itemMenu.add( sortByNameMenuItem );
         itemMenu.add( sortByDateMenuItem );
         itemMenu.addSeparator();
+        itemMenu.add( expandMenuItem );
+        itemMenu.add( collapseMenuItem );
+        itemMenu.addSeparator();
         itemMenu.add( cleanDownloadedMenuItem );
 
         // Create a tree
@@ -217,7 +244,7 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
         waitTreeModel = new DefaultTreeModel( waitNode );
         tree = new JTree( waitTreeModel );
         tree.setEditable( false );
-        tree.getSelectionModel().setSelectionMode( TreeSelectionModel.DISCONTIGUOUS_TREE_SELECTION );
+        tree.getSelectionModel().setSelectionMode( TreeSelectionModel.SINGLE_TREE_SELECTION );
         // Enable tool tips
         ToolTipManager.sharedInstance().registerComponent( tree );
         tree.setRowHeight( 0 );
@@ -313,8 +340,14 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
 
         downloadTree = new JTreeDownload( ms );
         JScrollPane downView = new JScrollPane( downloadTree );
+        downView.getHorizontalScrollBar().addAdjustmentListener( new AdjustmentListener() {
+            @Override
+            public void adjustmentValueChanged( AdjustmentEvent e ) {
+                downloadTree.repaint();
+            }
+        } );
         downView.setPreferredSize( new Dimension( 0, 0 ) );
-        downView.setBorder( new TitledBorder( "Active downloads" ) );
+        downView.setBorder( new TitledBorder( "Downloads" ) );
 
         rightPanel.add( infoView );
         rightPanel.add( downView );
@@ -347,7 +380,7 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
     public void valueChanged( TreeSelectionEvent e ) {
         updateInfo();
     }
-    
+
     private void updateInfo() {
         DefaultMutableTreeNode node = (DefaultMutableTreeNode) tree.getLastSelectedPathComponent();
 
@@ -745,7 +778,33 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
                 .hasMoreElements(); ) {
             DefaultMutableTreeNode curNode = (DefaultMutableTreeNode) e.nextElement();
             if ( curNode instanceof LeafNode ) {
-                list.add( ( (LeafNode) curNode ).getItem() );
+                if ( UserPreferences.PREF_BEHAVIOR_DOWNLOAD_EVERYTHING )
+                    list.add( ( (LeafNode) curNode ).getItem() );
+                else {
+                    TreeNode[] nodePath = curNode.getPath();
+                    for ( int i = 0; i < nodePath.length; i++ ) {
+                        if ( nodePath[ i ] instanceof FolderNode && ( (FolderNode) nodePath[ i ] ).isAutoDL() ) {
+                            list.add( ( (LeafNode) curNode ).getItem() );
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        if ( list.isEmpty() )
+            return null;
+        else
+            return list;
+    }
+    
+    public List<LeafNode> getLeaves() {
+        List<LeafNode> list = new ArrayList<LeafNode>( 1 );
+        for ( @SuppressWarnings( "rawtypes" )
+        Enumeration e = ( (DefaultMutableTreeNode) treeModel.getRoot() ).depthFirstEnumeration(); e
+                .hasMoreElements(); ) {
+            DefaultMutableTreeNode curNode = (DefaultMutableTreeNode) e.nextElement();
+            if ( curNode instanceof LeafNode ) {
+                list.add( (LeafNode) curNode );
             }
         }
         if ( list.isEmpty() )
@@ -830,8 +889,8 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
             node = (DefaultMutableTreeNode) node.getParent();
             TreePath path = new TreePath( node.getPath() );
             tree.expandPath( path );
-            tree.scrollPathToVisible( path );
             tree.setSelectionPath( pathNode );
+            tree.scrollPathToVisible( pathNode );
         }
     }
 
@@ -839,16 +898,69 @@ public class ItemPanel extends JPanel implements TreeSelectionListener {
         return splitPane.getDividerLocation();
     }
 
-    public void updateDownload() {
-        downloadTree.updateDL();
+    public synchronized void updateDownload( Download dl ) {
+        downloadTree.updateDownload( dl );
     }
 
     public JTree getTree() {
         return tree;
     }
+    
+    public void checkFiles() {
+        List<LeafNode> leaves = getLeaves();
+        if ( leaves != null ) {
+            ListIterator<LeafNode> it = leaves.listIterator();
+            while ( it.hasNext() ) {
+                LeafNode node = it.next();
+                
+                // Check finished files
+                String filePath = UserPreferences.PREF_DOWNLOAD_TARGET;
+                String dirs = node.getPathDir().getDirs();
+                if ( dirs != null )
+                    filePath += File.separator + dirs;
+                filePath += File.separator + node.getItem().getName();
+                
+                File f = new File( filePath );
+                if ( f.exists() && f.length() == node.getItem().getSize() ) {
+                    node.setDownPerc( 1.0f );
+                    node.setStatus( "Completed" );
+                    continue;
+                }
+                // Check part files
+                int i = 0;
+                long dlSize = 0L;
+                while ( true ) {
+                    File fPart = new File( filePath + ".pio" + i );
+                    if ( !fPart.exists() )
+                        break;
+                    else
+                        dlSize += fPart.length();
+                    i++;
+                }
+                if ( i > 0 ) {
+                    node.setDownPerc( (float) dlSize / (float) node.getItem().getSize() );
+                    node.setStatus( GuiOperations.getReadableSize( dlSize ) + " / "
+                            + GuiOperations.getReadableSize( node.getItem().getSize() ) );
+                }
+            }
+        }
+        repaint();
+    }
+    
+    public void expandEverything() {
+        for ( int i = 0; i < tree.getRowCount(); i++ ) {
+            tree.expandRow( i );
+        }
+    }
+
+    public void collapseEverything() {
+        for ( int i = tree.getRowCount() - 1; i >= 0; i-- ) {
+            tree.collapseRow( i );
+        }
+    }
 
     @Override
-    public void repaint() {
+    public synchronized void repaint() {
         if ( tree != null )
             tree.repaint();
         if ( downloadTree != null )

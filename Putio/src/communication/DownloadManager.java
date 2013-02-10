@@ -23,11 +23,12 @@ import api.Item;
 public class DownloadManager implements Runnable {
     // Necessary components
     protected Queue<Download> downloadQueue;
-    protected Map<Integer, Download> activeDownloads;
-    protected Map<Integer, Download> sessionDownloads;
+    protected Map<String, Download> activeDownloads;
+    protected Map<String, Download> sessionDownloads;
     protected Connection connection;
     protected Thread connectionThread;
     private Boolean mustRefresh = false;
+    private Boolean downloading = false;
 
     // Last update time
     protected long lastUpdateTime = System.currentTimeMillis();
@@ -52,15 +53,29 @@ public class DownloadManager implements Runnable {
     /**
      * @return the activeDownloads
      */
-    public Map<Integer, Download> getActiveDownloads() {
-        return activeDownloads;
+    public Map<String, Download> getActiveDownloads() {
+        synchronized ( activeDownloads ) {
+            return activeDownloads;
+        }
     }
 
     /**
      * @return the sessionDownloads
      */
-    public Map<Integer, Download> getSessionDownloads() {
-        return sessionDownloads;
+    public Map<String, Download> getSessionDownloads() {
+        synchronized ( sessionDownloads ) {
+            return sessionDownloads;
+        }
+    }
+    
+    public Download getDownload( Item item ) {
+        synchronized ( sessionDownloads ) {
+            return sessionDownloads.get( item.getId() );
+        }
+    }
+    
+    public Boolean isDownloading() {
+        return downloading;
     }
 
     /**
@@ -71,10 +86,12 @@ public class DownloadManager implements Runnable {
      */
     public DownloadManager( MainScreen ms ) {
         downloadQueue = new LinkedList<Download>();
-        activeDownloads = new HashMap<Integer, Download>();
-        sessionDownloads = new HashMap<Integer, Download>();
+        activeDownloads = new HashMap<String, Download>();
+        sessionDownloads = new HashMap<String, Download>();
         this.ms = ms;
         this.connection = new Connection();
+        if ( UserPreferences.PREF_AUTO_DOWNLOAD )
+            downloading = true;
     }
 
     @Override
@@ -102,18 +119,22 @@ public class DownloadManager implements Runnable {
                         lastUpdateTime = System.currentTimeMillis();
                         mustRefresh = false;
                     }
-                    if ( UserPreferences.PREF_AUTO_DOWNLOAD ) {
+                    if ( downloading ) {
                         while ( activeDownloads.size() < UserPreferences.PREF_MAX_DOWNLOADS
                                 && downloadQueue.size() > 0 ) {
                             Download d = downloadQueue.poll();
                             if ( !UserPreferences.PREF_FILE_SIZE_CHECK ) {
-                                activeDownloads.put( d.getId(), d );
-                                startDownload( d );
+                                synchronized ( activeDownloads ) {
+                                    activeDownloads.put( d.getItem().getId(), d );
+                                    startDownload( d );
+                                }
                             }
                             else {
                                 if ( d.getTotalLength() >= ( (long) ( UserPreferences.PREF_FILE_SIZE_FOR_CHECK * 1048576 ) ) ) {
-                                    activeDownloads.put( d.getId(), d );
-                                    startDownload( d );
+                                    synchronized ( activeDownloads ) {
+                                        activeDownloads.put( d.getItem().getId(), d );
+                                        startDownload( d );
+                                    }
                                 }
                                 else {
 //                                    ms.getItemTable()
@@ -153,15 +174,22 @@ public class DownloadManager implements Runnable {
                     }
                     // Update total download speed displays in GUI
                     totalSpeed = 0.0;
-                    Iterator<Download> downloads = activeDownloads.values()
-                            .iterator();
-                    while ( downloads.hasNext() ) {
-                        try {
-                            totalSpeed += downloads.next().getCurrentAvgSpeed();
-                        }
-                        catch ( ConcurrentModificationException e ) {
-                            System.out.println( e );
-                            Thread.sleep( 1000L );
+                    synchronized ( activeDownloads ) {
+                        Iterator<Download> downloads = activeDownloads.values()
+                                .iterator();
+                        while ( downloads.hasNext() ) {
+                            try {
+                                Download dl = downloads.next();
+                                totalSpeed += dl.getCurrentAvgSpeed();
+                                if ( dl.getDownloadedAmount() > 0 )
+                                    ms.getItemPanel().updateDownload( dl );
+                            }
+                            catch ( ConcurrentModificationException e ) {
+                                StringWriter sw = new StringWriter();
+                                e.printStackTrace( new PrintWriter( sw ) );
+                                System.out.println( sw.toString() );
+                                Thread.sleep( 1000L );
+                            }
                         }
                     }
                     ms.updateCurrentDownloadSpeed( GuiOperations
@@ -170,9 +198,7 @@ public class DownloadManager implements Runnable {
                 else {
                     ms.updateCurrentDownloadSpeed( "0.0 MB/s" );
                 }
-                Thread.sleep( 200L );
-                ms.getItemPanel().updateDownload();
-                Thread.sleep( 200L );
+                Thread.sleep( 300L );
             }
             catch ( InterruptedException e ) {
                 // ignored
@@ -221,6 +247,7 @@ public class DownloadManager implements Runnable {
     public void refreshQueue() {
         try {
             ms.getItemPanel().populateTree( connection );
+            ms.getItemPanel().checkFiles();
             List<Item> items = ms.getItemPanel().getItems();
             //System.out.println( items );
             if ( items != null ) {
@@ -240,94 +267,103 @@ public class DownloadManager implements Runnable {
         ms.getItemPanel().stopOp();
         this.mustRefresh = true;
     }
+    
+    public void downloading( Boolean dwn ) {
+        this.downloading = dwn;
+    }
 
     private void addItemsToQueue( Item item ) {
         if ( isQueueNecessary( item ) ) {
             LeafNode leaf = (LeafNode) ms.getItemPanel().getItemInTree( item );
             Download d = new Download( UserPreferences.PREF_USERTOKEN, item,
                     leaf, UserPreferences.PREF_DOWNLOAD_TARGET, connection );
+            leaf.setDownload( d );
             downloadQueue.add( d );
-            sessionDownloads.put( d.getId(), d );
+            synchronized( sessionDownloads ) {
+                sessionDownloads.put( item.getId(), d );
+            }
         }
     }
 
     private boolean isQueueNecessary( Item item ) {
         boolean queueNecessary = true;
-        Iterator<Download> i = sessionDownloads.values().iterator();
-        while ( i.hasNext() ) {
-            Download download = i.next();
-            if ( download.getPutioId().equals( item.getId() ) ) {
-                if ( download.isCompleted() || download.isFaulty() ) {
-                    if ( !download.isCanceled() ) {
-                        if ( !UserPreferences.PREF_DONT_ASK_DOWNLOAD_AGAIN ) {
-                            switch ( JOptionPane
-                                    .showConfirmDialog(
-                                            null,
-                                            "This file was already downloaded. Would you like to download it again?",
-                                            "Duplicate: " + item.getName(),
-                                            JOptionPane.YES_NO_OPTION,
-                                            JOptionPane.QUESTION_MESSAGE ) ) {
-                            case JOptionPane.YES_OPTION:
-                                queueNecessary = true;
-                                sessionDownloads.remove( download.getId() );
-                                break;
-                            case JOptionPane.NO_OPTION:
-                                queueNecessary = false;
+        synchronized( sessionDownloads ) {
+            Iterator<Download> i = sessionDownloads.values().iterator();
+            while ( i.hasNext() ) {
+                Download download = i.next();
+                if ( download.getPutioId().equals( item.getId() ) ) {
+                    if ( download.isCompleted() || download.isFaulty() ) {
+                        if ( !download.isCanceled() ) {
+                            if ( !UserPreferences.PREF_DONT_ASK_DOWNLOAD_AGAIN ) {
                                 switch ( JOptionPane
                                         .showConfirmDialog(
                                                 null,
-                                                "Would you like to delete it from server?",
-                                                "Delete",
+                                                "This file was already downloaded. Would you like to download it again?",
+                                                "Duplicate: " + item.getName(),
                                                 JOptionPane.YES_NO_OPTION,
                                                 JOptionPane.QUESTION_MESSAGE ) ) {
                                 case JOptionPane.YES_OPTION:
-                                    if ( download.delete() ) {
-                                        JOptionPane
-                                                .showMessageDialog(
-                                                        null,
-                                                        "File was deleted successfully!",
-                                                        "Success",
-                                                        JOptionPane.INFORMATION_MESSAGE );
-                                    }
-                                    else {
-                                        JOptionPane.showMessageDialog( null,
-                                                "File could not be deleted!",
-                                                "Failure",
-                                                JOptionPane.ERROR_MESSAGE );
+                                    queueNecessary = true;
+                                    sessionDownloads.remove( download.getItem().getId() );
+                                    break;
+                                case JOptionPane.NO_OPTION:
+                                    queueNecessary = false;
+                                    switch ( JOptionPane
+                                            .showConfirmDialog(
+                                                    null,
+                                                    "Would you like to delete it from server?",
+                                                    "Delete",
+                                                    JOptionPane.YES_NO_OPTION,
+                                                    JOptionPane.QUESTION_MESSAGE ) ) {
+                                    case JOptionPane.YES_OPTION:
+                                        if ( download.delete() ) {
+                                            JOptionPane
+                                                    .showMessageDialog(
+                                                            null,
+                                                            "File was deleted successfully!",
+                                                            "Success",
+                                                            JOptionPane.INFORMATION_MESSAGE );
+                                        }
+                                        else {
+                                            JOptionPane.showMessageDialog( null,
+                                                    "File could not be deleted!",
+                                                    "Failure",
+                                                    JOptionPane.ERROR_MESSAGE );
+                                        }
+                                        break;
                                     }
                                     break;
                                 }
-                                break;
+                            }
+                            else {
+                                switch ( UserPreferences.PREF_BEHAVIOR_DOWNLOAD_AGAIN ) {
+                                case UserPreferences.OPTION_DOWNLOAD_AGAIN:
+                                    queueNecessary = true;
+                                    sessionDownloads.remove( download.getItem().getId() );
+                                    break;
+                                case UserPreferences.OPTION_SKIP_DELETE:
+                                    download.delete();
+                                case UserPreferences.OPTION_SKIP:
+                                    queueNecessary = false;
+                                    break;
+                                }
                             }
                         }
                         else {
-                            switch ( UserPreferences.PREF_BEHAVIOR_DOWNLOAD_AGAIN ) {
-                            case UserPreferences.OPTION_DOWNLOAD_AGAIN:
-                                queueNecessary = true;
-                                sessionDownloads.remove( download.getId() );
-                                break;
-                            case UserPreferences.OPTION_SKIP_DELETE:
-                                download.delete();
-                            case UserPreferences.OPTION_SKIP:
-                                queueNecessary = false;
-                                break;
-                            }
+                            queueNecessary = false;
+                            break;
                         }
+                    }
+                    // Resume
+                    else if ( !download.isCompleted() && !download.isFaulty() && !download.isActive() ) {
+                        queueNecessary = true;
+                        sessionDownloads.remove( download.getItem().getId() );
+                        break;
                     }
                     else {
                         queueNecessary = false;
                         break;
                     }
-                }
-                // Resume
-                else if ( !download.isCompleted() && !download.isFaulty() && !download.isActive() ) {
-                    queueNecessary = true;
-                    sessionDownloads.remove( download.getId() );
-                    break;
-                }
-                else {
-                    queueNecessary = false;
-                    break;
                 }
             }
         }
@@ -362,6 +398,7 @@ public class DownloadManager implements Runnable {
                             }
                             else if ( download.isCanceled() ) {
                                 status = "Canceling download";
+                                downloadPercent = 0f;
                             }
                             else if ( download.isCompleted() ) {
                                 status = "Completing download";
@@ -423,25 +460,30 @@ public class DownloadManager implements Runnable {
                     System.out.println( sw.toString() );
                 }
                 finally {
-                    activeDownloads.remove( download.getId() );
+                    synchronized ( activeDownloads ) {
+                        activeDownloads.remove( download.getItem().getId() );
+                    }
                     LeafNode leaf = GuiOperations.getLeaf( ms,
                             download.getItem() );
                     if ( leaf != null ) {
                         if ( !download.isFaulty() ) {
                             leaf.setStatus( "Completed" );
                             leaf.setDownPerc( 1.0f );
+                            download.setDownloadedAmount( download.getTotalLength() );
                             if ( !connection.refresh() || !download.delete() ) {
                                 leaf.setStatus( "Completed (Couldn't be deleted)" );
                             }
                         }
                         else {
                             if ( !download.isCanceled() ) {
-                                leaf.setStatus( "Error" );
+                                leaf.setStatus( "Error : " + download.getErrorMsg() );
                             }
                             else {
-                                leaf.setStatus( "Canceled/Skipped" );
+                                leaf.setStatus( "Canceled" );
+                                download.setDownloadedAmount( 0 );
                             }
                         }
+                        ms.getItemPanel().updateDownload( download );
                         ms.getItemPanel().repaint();
                     }
                     // Update system tray icon

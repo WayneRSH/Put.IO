@@ -45,14 +45,25 @@ public class AnimatedTreeUI extends BasicTreeUI {
     // 0f = faster, 1f = slower
     private static float ANIMATION_SPEED = 0.8f;
 
-    private static Color colorLeaf = new Color( 206, 246, 216, 150 );
-    private static Color colorLeafBorder = new Color( 179, 223, 190, 150 );
-    private static Color colorLeafSel = new Color( 41, 151, 248, 150 );
-    private static Color colorLeafSelBorder = new Color( 29, 119, 197, 150 );
+    private static Color colorLeaf = new Color( 0xB7, 0xF5, 0xC6, 180 );
+    private static Color colorLeafBorder = new Color( 0x9E, 0xDA, 0xAD, 180 );
+    private static Color colorLeafSel = new Color( 0x29, 0x97, 0xF8, 180 );
+    private static Color colorLeafSelBorder = new Color( 0x11, 0x64, 0xAC, 180 );
+    private static Color colorLeafPause = new Color( 0xEB, 0xB0, 0x30, 180 );
+    private static Color colorLeafPauseBorder = new Color( 0xB4, 0x85, 0x1E, 180 );
+    private static Color colorLeafFaulty = new Color( 0xDB, 0x38, 0x38, 180 );
+    private static Color colorLeafFaultyBorder = new Color( 0xB0, 0x1F, 0x1F, 180 );
     
     private static StaticIcon play = new StaticIcon( StaticIcon.miniPlayIcon );
+    private static StaticIcon playGrey = new StaticIcon( StaticIcon.miniPlayGreyIcon );
     private static StaticIcon pause = new StaticIcon( StaticIcon.miniPauseIcon );
+    private static StaticIcon pauseGrey = new StaticIcon( StaticIcon.miniPauseGreyIcon );
     private static StaticIcon stop = new StaticIcon( StaticIcon.miniStopIcon );
+    private static StaticIcon stopGrey = new StaticIcon( StaticIcon.miniStopGreyIcon );
+    private static StaticIcon del = new StaticIcon( StaticIcon.miniDelIcon );
+    private static StaticIcon delGrey = new StaticIcon( StaticIcon.miniDelGreyIcon );
+    private static StaticIcon retry = new StaticIcon( StaticIcon.miniRetryIcon );
+    private static StaticIcon retryGrey = new StaticIcon( StaticIcon.miniRetryGreyIcon );
 
     public AnimatedTreeUI() {
         super();
@@ -71,38 +82,200 @@ public class AnimatedTreeUI extends BasicTreeUI {
                 colorTmp = colorLeafSel;
                 colorBorderTmp = colorLeafSelBorder;
             }
+            else if ( ( (LeafNode) node ).getDownload() != null && ( (LeafNode) node ).getDownload().isPaused() ) {
+                colorTmp = colorLeafPause;
+                colorBorderTmp = colorLeafPauseBorder;
+            }
+            else if ( ( (LeafNode) node ).getDownload() != null && ( (LeafNode) node ).getDownload().isFaulty() ) {
+                colorTmp = colorLeafFaulty;
+                colorBorderTmp = colorLeafFaultyBorder;
+            }
             Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-                                RenderingHints.VALUE_ANTIALIAS_ON);
             g2.setColor( colorTmp );
             // Download bar
             g2.fillRect( tree.getVisibleRect().x + 4, bounds.y + 2, Math.round( ( ( tree.getVisibleRect().width - 10 )
                     * ( (LeafNode) node ).getDownPerc() * 100 ) / 100 ), bounds.height - 5 );
             g2.setColor( colorBorderTmp );
             g2.drawRect( tree.getVisibleRect().x + 4, bounds.y + 2, tree.getVisibleRect().width - 10, bounds.height - 5 );
-            drawControls(g2, bounds, tree, row, (LeafNode)node);
             g2.dispose();
         }
     }
     
-    private static void drawControls( Graphics2D g, Rectangle bounds, JTree tree, int row, LeafNode node ) {
-        if ( node.getDownload() != null ) {
-            boolean isRowSelected = tree.isRowSelected( row );
-            if (isRowSelected) {
-                int w = play.getIconWidth();
-                int h = play.getIconHeight();
-                BufferedImage bi = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-                Graphics g2 = bi.getGraphics();
-                play.paintIcon(null, g2, 0, 0);
-                g.drawImage(bi, null, tree.getVisibleRect().width - 41, bounds.y + 4 );
+    public static void drawControls( Graphics g, Rectangle bounds, JTree tree, TreePath path, int row, int[] mousePos ) {
+        boolean isRowSelected = tree.isRowSelected( row );
+        if (isRowSelected) {
+            Object obj = tree.getLastSelectedPathComponent();
+            
+            if (!(obj instanceof LeafNode))
+                return;
+            
+            LeafNode node = (LeafNode) obj;
+            
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                    RenderingHints.VALUE_ANTIALIAS_ON);
+            
+            int xPos = ( tree.getVisibleRect().width + tree.getVisibleRect().x ) - 43;
+            
+            // Background for controls
+            g2.setColor( new Color( 255, 255, 255, 170 ) );
+            g2.fillRect( xPos, bounds.y + 3, 37, 18 );
+            
+            int selection = 0;
+            // Mouse over control
+            if ( mousePos[0] >= xPos && mousePos[0] < (xPos + 19) )
+                selection = 1;
+            else if ( mousePos[0] >= ( xPos + 19 ) && mousePos[0] < (xPos + 37 ) )
+                selection = 2;
+            
+            int w;
+            int h;
+            BufferedImage bi;
+            Graphics g3;
+            
+            if ( node.getDownload().isCompleted() 
+                    && !node.getDownload().isFaulty() ) {
+                if ( selection == 1 ) {
+                    w = play.getIconWidth();
+                    h = play.getIconHeight();
+                    bi = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+                    g3 = bi.getGraphics();
+                    play.paintIcon(null, g3, 0, 0);
+                    g2.drawImage(bi, null, xPos + 2, bounds.y + 4 );
+                    tree.setToolTipText( "Launch file" );
+                }
+                else {
+                    w = playGrey.getIconWidth();
+                    h = playGrey.getIconHeight();
+                    bi = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+                    g3 = bi.getGraphics();
+                    playGrey.paintIcon(null, g3, 0, 0);
+                    g2.drawImage(bi, null, xPos + 2, bounds.y + 4 );
+                }
                 
-                w = stop.getIconWidth();
-                h = stop.getIconHeight();
-                bi = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-                g2 = bi.getGraphics();
-                stop.paintIcon(null, g2, 0, 0);
-                g.drawImage(bi, null, tree.getVisibleRect().width - 24, bounds.y + 4 );
+                if ( selection == 2 ) {
+                    w = del.getIconWidth();
+                    h = del.getIconHeight();
+                    bi = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+                    g3 = bi.getGraphics();
+                    del.paintIcon(null, g3, 0, 0);
+                    g2.drawImage(bi, null, xPos + 19, bounds.y + 4 );
+                    tree.setToolTipText( "Remove from downloads" );
+                }
+                else {
+                    w = delGrey.getIconWidth();
+                    h = delGrey.getIconHeight();
+                    bi = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+                    g3 = bi.getGraphics();
+                    delGrey.paintIcon(null, g3, 0, 0);
+                    g2.drawImage(bi, null, xPos + 19, bounds.y + 4 );
+                }
             }
+            else {
+                if ( node.getDownload().isCanceled()
+                        || node.getDownload().isFaulty() ) {
+                    if ( selection == 1 ) {
+                        w = retry.getIconWidth();
+                        h = retry.getIconHeight();
+                        bi = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+                        g3 = bi.getGraphics();
+                        retry.paintIcon(null, g3, 0, 0);
+                        g2.drawImage(bi, null, xPos + 2, bounds.y + 4 );
+                        tree.setToolTipText( "Retry download" );
+                    }
+                    else {
+                        w = retryGrey.getIconWidth();
+                        h = retryGrey.getIconHeight();
+                        bi = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+                        g3 = bi.getGraphics();
+                        retryGrey.paintIcon(null, g3, 0, 0);
+                        g2.drawImage(bi, null, xPos + 2, bounds.y + 4 );
+                    }
+                }
+                else if ( node.getDownload().isPaused() ) {
+                    if ( selection == 1 ) {
+                        w = play.getIconWidth();
+                        h = play.getIconHeight();
+                        bi = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+                        g3 = bi.getGraphics();
+                        play.paintIcon(null, g3, 0, 0);
+                        g2.drawImage(bi, null, xPos + 2, bounds.y + 4 );
+                        tree.setToolTipText( "Resume download" );
+                    }
+                    else {
+                        w = playGrey.getIconWidth();
+                        h = playGrey.getIconHeight();
+                        bi = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+                        g3 = bi.getGraphics();
+                        playGrey.paintIcon(null, g3, 0, 0);
+                        g2.drawImage(bi, null, xPos + 2, bounds.y + 4 );
+                    }
+                }
+                else {
+                    if ( selection == 1 ) {
+                        w = pause.getIconWidth();
+                        h = pause.getIconHeight();
+                        bi = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+                        g3 = bi.getGraphics();
+                        pause.paintIcon(null, g3, 0, 0);
+                        g2.drawImage(bi, null, xPos + 2, bounds.y + 4 );
+                        tree.setToolTipText( "Pause download" );
+                    }
+                    else {
+                        w = pauseGrey.getIconWidth();
+                        h = pauseGrey.getIconHeight();
+                        bi = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+                        g3 = bi.getGraphics();
+                        pauseGrey.paintIcon(null, g3, 0, 0);
+                        g2.drawImage(bi, null, xPos + 2, bounds.y + 4 );
+                    }
+                }
+                
+                if ( node.getDownload().isCanceled() 
+                        || node.getDownload().isFaulty() ) {
+                    if ( selection == 2 ) {
+                        w = del.getIconWidth();
+                        h = del.getIconHeight();
+                        bi = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+                        g3 = bi.getGraphics();
+                        del.paintIcon(null, g3, 0, 0);
+                        g2.drawImage(bi, null, xPos + 19, bounds.y + 4 );
+                        tree.setToolTipText( "Remove from downloads" );
+                    }
+                    else {
+                        w = delGrey.getIconWidth();
+                        h = delGrey.getIconHeight();
+                        bi = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+                        g3 = bi.getGraphics();
+                        delGrey.paintIcon(null, g3, 0, 0);
+                        g2.drawImage(bi, null, xPos + 19, bounds.y + 4 );
+                    }
+                }
+                else {
+                    if ( selection == 2 ) {
+                        w = stop.getIconWidth();
+                        h = stop.getIconHeight();
+                        bi = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+                        g3 = bi.getGraphics();
+                        stop.paintIcon(null, g3, 0, 0);
+                        g2.drawImage(bi, null, xPos + 19, bounds.y + 4 );
+                        tree.setToolTipText( "Cancel download" );
+                    }
+                    else {
+                        w = stopGrey.getIconWidth();
+                        h = stopGrey.getIconHeight();
+                        bi = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+                        g3 = bi.getGraphics();
+                        stopGrey.paintIcon(null, g3, 0, 0);
+                        g2.drawImage(bi, null, xPos + 19, bounds.y + 4 );
+                    }
+                }
+            }
+            
+            if ( selection == 0 )
+                tree.setToolTipText( "Select item" );
+            
+            g2.dispose();
         }
     }
 

@@ -39,7 +39,7 @@ public class DownloadPart implements Runnable {
     public boolean isFaulty() {
         return isFaulty;
     }
-    
+
     public boolean isCompleted() {
         return isCompleted;
     }
@@ -78,25 +78,22 @@ public class DownloadPart implements Runnable {
                     this.downloadResumer.addDownloadedAmount( this.downloadedAmount );
                 }
             }
-            
-//            System.out.println( this.file.getPath() + "\nresume?" + isResuming + " offset:" + this.offset
-//                    + " dlam:" + this.downloadedAmount + " exist?" + this.file.exists() 
-//                    + " size:" + this.size + " length:" + this.file.length() );
 
             if ( downloadedAmount == size )
                 isCompleted = true;
             else {
                 this.fileOS = new FileOutputStream( this.file, isResuming );
-    
+
                 URL url = new URL( downloadResumer.getRootDownload().getUrl().replace( " ", "%20" ) );
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 // Specify what part of file to download
                 if ( this.offset > 0 )
                     conn.setRequestProperty( "Range", "bytes=" + offset + "-" );
-    
+
                 conn.connect();
                 int responseCode = conn.getResponseCode();
-                if ( responseCode == HttpURLConnection.HTTP_OK || responseCode == HttpURLConnection.HTTP_PARTIAL ) {
+                if ( responseCode == HttpURLConnection.HTTP_OK
+                        || responseCode == HttpURLConnection.HTTP_PARTIAL ) {
                     byte[] tmp_buffer = new byte[ 4096 ];
                     InputStream is = conn.getInputStream();
                     int n;
@@ -114,9 +111,10 @@ public class DownloadPart implements Runnable {
                         fileOS.flush();
                         downloadedAmount += n;
                         downloadResumer.addDownloadedAmount( n );
-                        
+
                         // Wait if paused
-                        while ( downloadResumer.getRootDownload().isPaused() && !downloadResumer.getRootDownload().isCanceled() )
+                        while ( downloadResumer.getRootDownload().isPaused()
+                                && !downloadResumer.getRootDownload().isCanceled() )
                             Thread.sleep( 1000 );
                     }
                     fileOS.close();
@@ -142,6 +140,9 @@ public class DownloadPart implements Runnable {
                 catch ( IOException e ) {
                     // Ignore
                 }
+            }
+            if ( isFaulty ) {
+                this.file.delete();
             }
         }
     }

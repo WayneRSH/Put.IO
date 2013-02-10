@@ -6,6 +6,8 @@ import java.io.FileOutputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 
+import org.apache.commons.io.FileUtils;
+
 public class DownloadResumer implements Runnable {
     /** Main download which this part belongs to */
     private Download rootDownload;
@@ -24,6 +26,7 @@ public class DownloadResumer implements Runnable {
     private DownloadPart[] parts;
     private int numberOfParts;
     private boolean isCompleted = false;
+    private String errorMsg;
 
     /**
      * @return the size
@@ -71,6 +74,10 @@ public class DownloadResumer implements Runnable {
 
     public boolean isResuming() {
         return this.resuming;
+    }
+    
+    public String getErrorMsg() {
+        return this.errorMsg;
     }
 
     /**
@@ -138,7 +145,7 @@ public class DownloadResumer implements Runnable {
                 byte[] buff = new byte[ 8000 ];
                 for ( i = 0; i < this.parts.length; i++ ) {
                     partFile = new File( this.path + ".pio" + i );
-                    if ( !this.isFaulty ) {
+                    if ( !this.isFaulty && partFile.length() > 0 ) {
                         finp = new FileInputStream( partFile );
                         while ( ( length = finp.read( buff ) ) > 0 ) {
                             fout.write( buff, 0, length );
@@ -148,10 +155,21 @@ public class DownloadResumer implements Runnable {
                     partFile.delete();
                 }
                 fout.close();
+                
+                // If crc32check ?
+                File f = new File( this.path );
+                StringBuilder hex = new StringBuilder();
+                hex.append( Long.toHexString( FileUtils.checksumCRC32( f ) ) );
+                if ( ( hex.length() % 2 ) != 0 )
+                    hex.insert( 0, '0' );
+                if ( !hex.toString().equals( rootDownload.getItem().getCrc32() ) )
+                    throw new Exception( "Checksum check failed for file: " + this.path + "(CRC32: "
+                            + hex.toString() + " - putioCRC32: " + rootDownload.getItem().getCrc32() + ")" );
             }
         }
         catch ( Exception e ) {
             this.isFaulty = true;
+            this.errorMsg = e.getLocalizedMessage();
             StringWriter sw = new StringWriter();
             e.printStackTrace( new PrintWriter( sw ) );
             System.out.println( sw.toString() );

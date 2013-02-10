@@ -14,7 +14,7 @@ public class LeafNode extends DefaultMutableTreeNode {
     private Item item = null;
     private Download download = null;
     private float downloadPercentage = 0.0f;
-    private String status = "Unknown";
+    private String status = "Waiting";
 
     public LeafNode( Object obj ) {
         super( obj );
@@ -58,6 +58,11 @@ public class LeafNode extends DefaultMutableTreeNode {
             downloadPercentage = 1.0f;
         else
             downloadPercentage = dwnPerc;
+    }
+    
+    public void setDownload( Download download ) {
+        this.download = download;
+        this.item = download.getItem();
     }
 
     public TreePathDir getPathDir() {
